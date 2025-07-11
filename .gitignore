@@ -2,6 +2,7 @@
 build/
 bin/
 lib/
+/REF
 
 # Visual Studio files
 *.vcxproj.user

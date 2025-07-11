@@ -8,6 +8,10 @@
 
 namespace nbody {
 
+// Physics constants
+static constexpr float MIN_DISTANCE = 1.0f;  // Minimum distance to prevent singularities
+static constexpr float MAX_FORCE = 10000.0f; // Maximum force to prevent instability
+
 PhysicsEngine::PhysicsEngine() {
     m_bodyArrays = std::make_unique<BodyArrays>();
     m_barnesHutTree = std::make_unique<BarnesHutTree>();
@@ -56,8 +60,9 @@ void PhysicsEngine::Update(std::vector<std::unique_ptr<Body>>& bodies, float del
 void PhysicsEngine::CalculateForces(std::vector<std::unique_ptr<Body>>& bodies) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    // Clear all forces
+    // Clear all forces and accelerations
     for (auto& body : bodies) {
+        body->ClearForce();
         body->SetAcceleration(glm::vec2(0.0f));
     }
     
@@ -84,33 +89,39 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
     
     m_stats.forceCalculations = 0;
     
-    // Use parallel execution for better performance
-    std::for_each(std::execution::par_unseq, bodies.begin(), bodies.end(),
-        [&](std::unique_ptr<Body>& bodyA) {
-            if (bodyA->IsFixed()) return;
+    // Sequential calculation for now (avoid parallel issues)
+    for (size_t i = 0; i < bodies.size(); ++i) {
+        auto& bodyA = bodies[i];
+        if (bodyA->IsFixed()) continue;
+        
+        glm::vec2 totalAcceleration(0.0f);
+        
+        for (size_t j = 0; j < bodies.size(); ++j) {
+            if (i == j) continue;
             
-            glm::vec2 totalForce(0.0f);
+            auto& bodyB = bodies[j];
             
-            for (const auto& bodyB : bodies) {
-                if (bodyA.get() == bodyB.get()) continue;
-                
-                glm::vec2 r = bodyB->GetPosition() - bodyA->GetPosition();
-                float distanceSq = glm::dot(r, r) + softeningSq;
+            // Calculate direction vector from bodyA to bodyB
+            glm::vec2 r = bodyB->GetPosition() - bodyA->GetPosition();
+            float distanceSq = glm::dot(r, r) + softeningSq;
+            
+            if (distanceSq > MIN_DISTANCE * MIN_DISTANCE) {
+                // Calculate gravitational acceleration (F/m = GMm/r^2 / m = GM/r^2)
                 float distance = std::sqrt(distanceSq);
+                float accelerationMagnitude = G * bodyB->GetMass() / distanceSq;
                 
-                if (distance > MIN_DISTANCE) {
-                    float forceMagnitude = G * bodyA->GetMass() * bodyB->GetMass() / distanceSq;
-                    forceMagnitude = std::min(forceMagnitude, MAX_FORCE);
-                    
-                    glm::vec2 forceDirection = r / distance;
-                    totalForce += forceMagnitude * forceDirection;
-                    
-                    m_stats.forceCalculations++;
-                }
+                // Cap maximum acceleration to prevent instability
+                accelerationMagnitude = std::min(accelerationMagnitude, MAX_FORCE / bodyA->GetMass());
+                
+                glm::vec2 accelerationDirection = r / distance;
+                totalAcceleration += accelerationMagnitude * accelerationDirection;
+                
+                m_stats.forceCalculations++;
             }
-            
-            bodyA->ApplyForce(totalForce);
-        });
+        }
+        
+        bodyA->SetAcceleration(totalAcceleration);
+    }
 }
 
 void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>& bodies) {
@@ -148,8 +159,8 @@ void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodie
 void PhysicsEngine::IntegrateMotion(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    // Use Verlet integration for better stability
-    IntegrateVerlet(bodies, deltaTime);
+    // Use leapfrog integration to match reference implementation
+    IntegrateLeapfrog(bodies, deltaTime);
     
     auto end = std::chrono::high_resolution_clock::now();
     m_stats.integrationTime = std::chrono::duration<double, std::milli>(end - start).count();
@@ -162,15 +173,29 @@ void PhysicsEngine::IntegrateEuler(std::vector<std::unique_ptr<Body>>& bodies, f
 }
 
 void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
-    // Leapfrog integration implementation
+    // Leapfrog integration matching reference implementation
+    const float dtDividedBy2 = deltaTime * 0.5f;
+    const float damping = m_config.dampingFactor;
+    
     for (auto& body : bodies) {
         if (body->IsFixed() || body->IsBeingDragged()) continue;
         
-        // Update velocity at half step
-        glm::vec2 velocity = body->GetVelocity() + body->GetAcceleration() * (deltaTime * 0.5f);
+        // Get current state
+        glm::vec2 position = body->GetPosition();
+        glm::vec2 velocity = body->GetVelocity() * damping;
+        glm::vec2 acceleration = body->GetAcceleration();
         
-        // Update position with new velocity
-        glm::vec2 position = body->GetPosition() + velocity * deltaTime;
+        // Compute velocity (i + 1/2)
+        velocity += acceleration * dtDividedBy2;
+        
+        // Compute next position (i+1)
+        position += velocity * deltaTime;
+        
+        // Update acceleration is already done in force calculation
+        // Compute next velocity (i+1)
+        velocity += acceleration * dtDividedBy2;
+        
+        // Update body state
         body->SetPosition(position);
         body->SetVelocity(velocity);
     }

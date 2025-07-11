@@ -52,6 +52,10 @@ void Body::ApplyForce(const glm::vec2& force) {
     m_force += force;
 }
 
+void Body::ClearForce() {
+    m_force = glm::vec2(0.0f);
+}
+
 void Body::Update(float deltaTime) {
     if (m_fixed || m_beingDragged) {
         m_acceleration = glm::vec2(0.0f);
@@ -59,17 +63,8 @@ void Body::Update(float deltaTime) {
         return;
     }
     
-    // Calculate acceleration from force
-    m_acceleration = m_force / m_mass;
-    
-    // Integrate velocity and position (Verlet integration)
-    m_velocity += m_acceleration * deltaTime;
-    m_position += m_velocity * deltaTime;
-    
-    // Reset force for next frame
-    m_force = glm::vec2(0.0f);
-    
-    // Update trail
+    // Integration is now handled by PhysicsEngine
+    // Just update trail here
     UpdateTrail();
 }
 

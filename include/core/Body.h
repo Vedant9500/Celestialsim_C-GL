@@ -40,6 +40,7 @@ public:
     
     // Physics
     void ApplyForce(const glm::vec2& force);
+    void ClearForce();
     void Update(float deltaTime);
     void UpdateRadius();
     
