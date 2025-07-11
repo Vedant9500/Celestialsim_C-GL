@@ -83,6 +83,7 @@ public:
     // Physics parameters
     float GetGravitationalConstant() const { return m_gravitationalConstant; }
     float GetTimeStep() const { return m_timeStep; }
+    float GetTimeScale() const { return m_timeScale; }
     float GetSofteningLength() const { return m_softeningLength; }
     bool GetUseBarnesHut() const { return m_useBarnesHut; }
     float GetBarnesHutTheta() const { return m_barnesHutTheta; }
@@ -137,9 +138,10 @@ private:
     int m_trailLength = 100;
     
     // Physics settings
-    float m_gravitationalConstant = 100.0f;
+    float m_gravitationalConstant = 10.0f;
     float m_timeStep = 0.016f;
-    float m_softeningLength = 2.0f;
+    float m_timeScale = 1.0f;
+    float m_softeningLength = 1.0f;
     bool m_useBarnesHut = true;
     float m_barnesHutTheta = 0.5f;
     bool m_enableCollisions = true;

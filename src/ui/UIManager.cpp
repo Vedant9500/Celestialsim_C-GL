@@ -206,13 +206,18 @@ void UIManager::RenderControlPanel() {
     
     // Physics parameters with change detection
     if (ImGui::CollapsingHeader("Physics Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::SliderFloat("Gravity", &m_gravitationalConstant, 0.1f, 1000.0f, "%.1f")) {
+        if (ImGui::SliderFloat("Gravity", &m_gravitationalConstant, 0.0f, 50.0f, "%.1f")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
-        if (ImGui::SliderFloat("Time Step", &m_timeStep, 0.001f, 0.1f, "%.3f")) {
+        if (ImGui::SliderFloat("Time Step", &m_timeStep, 0.001f, 0.05f, "%.3f")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
-        if (ImGui::SliderFloat("Softening", &m_softeningLength, 0.1f, 10.0f, "%.1f")) {
+        if (ImGui::SliderFloat("Time Scale", &m_timeScale, 0.0f, 5.0f, "%.2f")) {
+            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
+        }
+        ImGui::SameLine(); ShowHelpMarker("Speed multiplier for the simulation");
+        
+        if (ImGui::SliderFloat("Softening", &m_softeningLength, 0.1f, 5.0f, "%.2f")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
         

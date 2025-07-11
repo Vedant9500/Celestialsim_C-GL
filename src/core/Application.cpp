@@ -116,6 +116,7 @@ bool Application::Initialize() {
         auto& config = m_physics->GetMutableConfig();
         config.gravitationalConstant = m_ui->GetGravitationalConstant();
         config.timeStep = m_ui->GetTimeStep();
+        config.timeScale = m_ui->GetTimeScale();
         config.softeningLength = m_ui->GetSofteningLength();
         config.useBarnesHut = m_ui->GetUseBarnesHut();
         config.barnesHutTheta = m_ui->GetBarnesHutTheta();

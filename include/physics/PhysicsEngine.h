@@ -40,9 +40,10 @@ struct EnergyStats {
  * @brief Configuration for physics simulation
  */
 struct PhysicsConfig {
-    float gravitationalConstant = 100.0f;  // Match UI default
+    float gravitationalConstant = 10.0f;  // More reasonable default
     float timeStep = 0.016f;
-    float softeningLength = 2.0f;
+    float timeScale = 1.0f;  // Speed multiplier
+    float softeningLength = 1.0f;  // Larger softening for stability
     float dampingFactor = 0.999f;
     bool useBarnesHut = true;
     float barnesHutTheta = 0.5f;

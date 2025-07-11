@@ -35,10 +35,13 @@ void PhysicsEngine::Update(std::vector<std::unique_ptr<Body>>& bodies, float del
     
     StartTimer();
     
+    // Apply time scale multiplier
+    float scaledDeltaTime = deltaTime * m_config.timeScale;
+    
     // Use adaptive time stepping if enabled
-    float actualDeltaTime = deltaTime;
+    float actualDeltaTime = scaledDeltaTime;
     if (m_config.adaptiveTimeStep) {
-        actualDeltaTime = CalculateAdaptiveTimeStep(bodies);
+        actualDeltaTime = CalculateAdaptiveTimeStep(bodies) * m_config.timeScale;
     }
     
     // Calculate forces
