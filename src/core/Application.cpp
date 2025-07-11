@@ -137,6 +137,11 @@ bool Application::Initialize() {
         m_renderer->SetShowQuadTree(m_ui->IsShowingQuadTree());
     };
     
+    // Initial sync of render parameters from UI
+    if (m_ui->OnRenderParameterChanged) {
+        m_ui->OnRenderParameterChanged();
+    }
+    
     m_ui->OnResetCamera = [this]() {
         m_renderer->SetCameraPosition(glm::vec2(0.0f));
         m_renderer->SetCameraZoom(1.0f);
@@ -144,6 +149,10 @@ bool Application::Initialize() {
     
     m_ui->OnFitAllBodies = [this]() {
         m_renderer->FitAllBodies(m_bodies);
+    };
+    
+    m_ui->OnSpawnBodies = [this](int count, int pattern) {
+        SpawnBodies(count, pattern);
     };
     
     m_ui->OnSetCameraPosition = [this](const glm::vec2& position) {
@@ -522,6 +531,76 @@ void Application::CreateRandomCluster(int count) {
         glm::vec2 position(posDist(gen), posDist(gen));
         glm::vec2 velocity(velDist(gen), velDist(gen));
         float mass = massDist(gen);
+        
+        AddBody(position, velocity, mass);
+    }
+}
+
+void Application::SpawnBodies(int count, int pattern) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    
+    float radius = m_ui->GetSpawnRadius();
+    float mass = m_ui->GetSpawnMass();
+    float speed = m_ui->GetSpawnSpeed();
+    
+    for (int i = 0; i < count; ++i) {
+        glm::vec2 position;
+        glm::vec2 velocity;
+        
+        switch (pattern) {
+            case 0: { // Random
+                std::uniform_real_distribution<float> posDist(-radius, radius);
+                position = glm::vec2(posDist(gen), posDist(gen));
+                
+                if (speed > 0) {
+                    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
+                    std::uniform_real_distribution<float> speedDist(0.0f, speed);
+                    float angle = angleDist(gen);
+                    float vel = speedDist(gen);
+                    velocity = glm::vec2(vel * std::cos(angle), vel * std::sin(angle));
+                }
+                break;
+            }
+            case 1: { // Circle
+                float angle = 2.0f * 3.14159f * i / count;
+                position = glm::vec2(radius * std::cos(angle), radius * std::sin(angle));
+                
+                if (speed > 0) {
+                    // Orbital velocity
+                    velocity = glm::vec2(-speed * std::sin(angle), speed * std::cos(angle));
+                }
+                break;
+            }
+            case 2: { // Grid
+                int gridSize = std::ceil(std::sqrt(count));
+                int row = i / gridSize;
+                int col = i % gridSize;
+                float spacing = 2.0f * radius / gridSize;
+                
+                position = glm::vec2(
+                    -radius + col * spacing + spacing * 0.5f,
+                    -radius + row * spacing + spacing * 0.5f
+                );
+                
+                if (speed > 0) {
+                    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
+                    float angle = angleDist(gen);
+                    velocity = glm::vec2(speed * std::cos(angle), speed * std::sin(angle));
+                }
+                break;
+            }
+            case 3: { // Spiral
+                float angle = 2.0f * 3.14159f * i / count * 3.0f; // 3 turns
+                float r = radius * i / count;
+                position = glm::vec2(r * std::cos(angle), r * std::sin(angle));
+                
+                if (speed > 0) {
+                    velocity = glm::vec2(-speed * std::sin(angle), speed * std::cos(angle));
+                }
+                break;
+            }
+        }
         
         AddBody(position, velocity, mass);
     }

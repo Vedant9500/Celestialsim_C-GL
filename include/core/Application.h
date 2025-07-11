@@ -102,6 +102,7 @@ private:
     void CreateBinarySystem();
     void CreateGalaxySpiral();
     void CreateRandomCluster(int count);
+    void SpawnBodies(int count, int pattern);
     
     // Performance monitoring
     void UpdatePerformanceMetrics();

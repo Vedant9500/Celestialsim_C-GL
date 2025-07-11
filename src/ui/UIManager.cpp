@@ -287,6 +287,26 @@ void UIManager::RenderControlPanel() {
         ImGui::BulletText("Middle mouse: Pan");
     }
     
+    // Quick spawn N bodies
+    if (ImGui::CollapsingHeader("Quick Spawn", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::InputInt("Number of Bodies", &m_spawnCount, 10, 100);
+        m_spawnCount = std::max(1, std::min(m_spawnCount, 100000)); // Limit to reasonable range
+        
+        ImGui::SliderFloat("Spawn Radius", &m_spawnRadius, 5.0f, 50.0f, "%.1f");
+        ImGui::SameLine(); ShowHelpMarker("Radius of the area where bodies will spawn");
+        
+        ImGui::SliderFloat("Spawn Mass", &m_spawnMass, 0.1f, 10.0f, "%.2f");
+        ImGui::SliderFloat("Initial Speed", &m_spawnSpeed, 0.0f, 20.0f, "%.1f");
+        ImGui::SameLine(); ShowHelpMarker("Random velocity magnitude for spawned bodies");
+        
+        const char* spawnTypes[] = { "Random", "Circle", "Grid", "Spiral" };
+        ImGui::Combo("Pattern", &m_spawnPattern, spawnTypes, 4);
+        
+        if (ImGui::Button("Spawn Bodies", ImVec2(-1, 0))) {
+            if (OnSpawnBodies) OnSpawnBodies(m_spawnCount, m_spawnPattern);
+        }
+    }
+    
     // Rendering options
     if (ImGui::CollapsingHeader("Visualization", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::Checkbox("Show Trails", &m_showTrails)) {

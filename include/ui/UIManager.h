@@ -80,6 +80,13 @@ public:
     glm::vec3 GetNewBodyColor() const { return m_newBodyColor; }
     glm::vec2 GetNewBodyVelocity() const { return m_newBodyVelocity; }
     
+    // Quick spawn getters
+    int GetSpawnCount() const { return m_spawnCount; }
+    float GetSpawnRadius() const { return m_spawnRadius; }
+    float GetSpawnMass() const { return m_spawnMass; }
+    float GetSpawnSpeed() const { return m_spawnSpeed; }
+    int GetSpawnPattern() const { return m_spawnPattern; }
+    
     // Physics parameters
     float GetGravitationalConstant() const { return m_gravitationalConstant; }
     float GetTimeStep() const { return m_timeStep; }
@@ -108,6 +115,7 @@ public:
     std::function<void()> OnRenderParameterChanged;
     std::function<void()> OnResetCamera;
     std::function<void()> OnFitAllBodies;
+    std::function<void(int, int)> OnSpawnBodies;  // (count, pattern)
     std::function<void(const glm::vec2&)> OnSetCameraPosition;
     std::function<void(float)> OnSetCameraZoom;
     
@@ -136,6 +144,13 @@ private:
     glm::vec3 m_newBodyColor{1.0f, 1.0f, 1.0f};
     glm::vec2 m_newBodyVelocity{0.0f, 0.0f};
     int m_trailLength = 100;
+    
+    // Quick spawn settings
+    int m_spawnCount = 100;
+    float m_spawnRadius = 20.0f;
+    float m_spawnMass = 1.0f;
+    float m_spawnSpeed = 5.0f;
+    int m_spawnPattern = 0;  // 0=Random, 1=Circle, 2=Grid, 3=Spiral
     
     // Physics settings
     float m_gravitationalConstant = 10.0f;
