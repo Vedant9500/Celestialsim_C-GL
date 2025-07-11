@@ -227,10 +227,6 @@ private:
     void UpdateQuadTreeVertices(const QuadTreeNode* root);
     
     void RenderBodies();
-    void RenderTrails();
-    void RenderGrid();
-    void RenderForces();
-    void RenderQuadTree();
     
     void StartTimer();
     void EndTimer();

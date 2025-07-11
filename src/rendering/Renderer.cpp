@@ -289,6 +289,9 @@ RenderStats Renderer::Render(const std::vector<std::unique_ptr<Body>>& bodies,
     UpdateBodyInstances(bodies, selectedBody);
     RenderBodies();
     
+    // TODO: Implement visualization features properly with modern OpenGL
+    // For now, let's keep it simple to not break existing functionality
+    
     // Update statistics
     EndTimer();
     
