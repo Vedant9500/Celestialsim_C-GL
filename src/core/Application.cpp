@@ -87,6 +87,7 @@ bool Application::Initialize() {
     glfwSetMouseButtonCallback(window, MouseButtonCallback);
     glfwSetScrollCallback(window, ScrollCallback);
     glfwSetKeyCallback(window, KeyCallback);
+    glfwSetCharCallback(window, CharCallback);
 
     // Set up UI callbacks
     m_ui->OnPlayPause = [this]() { 
@@ -537,27 +538,44 @@ void Application::UpdatePerformanceMetrics() {
 
 // Static callback implementations
 void Application::MouseMoveCallback(GLFWwindow* window, double x, double y) {
+    // Forward to ImGui first
+    ImGui_ImplGlfw_CursorPosCallback(window, x, y);
+    
     if (s_instance) {
         s_instance->OnMouseMove(x, y);
     }
 }
 
 void Application::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
+    // Forward to ImGui first
+    ImGui_ImplGlfw_MouseButtonCallback(window, button, action, mods);
+    
     if (s_instance) {
         s_instance->OnMouseButton(button, action, mods);
     }
 }
 
 void Application::ScrollCallback(GLFWwindow* window, double xOffset, double yOffset) {
+    // Forward to ImGui first
+    ImGui_ImplGlfw_ScrollCallback(window, xOffset, yOffset);
+    
     if (s_instance) {
         s_instance->OnMouseScroll(xOffset, yOffset);
     }
 }
 
 void Application::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    // Forward to ImGui first
+    ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
+    
     if (s_instance) {
         s_instance->OnKeyboard(key, scancode, action, mods);
     }
+}
+
+void Application::CharCallback(GLFWwindow* window, unsigned int codepoint) {
+    // Forward to ImGui first
+    ImGui_ImplGlfw_CharCallback(window, codepoint);
 }
 
 void Application::WindowSizeCallback(GLFWwindow* window, int width, int height) {

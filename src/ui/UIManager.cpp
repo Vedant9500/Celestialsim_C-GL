@@ -25,7 +25,7 @@ bool UIManager::Initialize(GLFWwindow* window) {
     SetupStyle();
     
     // Setup Platform/Renderer backends
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    ImGui_ImplGlfw_InitForOpenGL(window, false); // Don't install callbacks automatically
     ImGui_ImplOpenGL3_Init("#version 330");
     
     // Initialize history buffers
