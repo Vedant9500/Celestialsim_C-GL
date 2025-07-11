@@ -139,7 +139,7 @@ private:
     // Physics settings
     float m_gravitationalConstant = 100.0f;
     float m_timeStep = 0.016f;
-    float m_softeningLength = 0.1f;
+    float m_softeningLength = 2.0f;
     bool m_useBarnesHut = true;
     float m_barnesHutTheta = 0.5f;
     bool m_enableCollisions = true;

@@ -212,7 +212,7 @@ void UIManager::RenderControlPanel() {
         if (ImGui::SliderFloat("Time Step", &m_timeStep, 0.001f, 0.1f, "%.3f")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
-        if (ImGui::SliderFloat("Softening", &m_softeningLength, 0.001f, 1.0f, "%.3f")) {
+        if (ImGui::SliderFloat("Softening", &m_softeningLength, 0.1f, 10.0f, "%.1f")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
         

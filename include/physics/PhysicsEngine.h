@@ -42,7 +42,7 @@ struct EnergyStats {
 struct PhysicsConfig {
     float gravitationalConstant = 100.0f;  // Match UI default
     float timeStep = 0.016f;
-    float softeningLength = 0.1f;
+    float softeningLength = 2.0f;
     float dampingFactor = 0.999f;
     bool useBarnesHut = true;
     float barnesHutTheta = 0.5f;

@@ -102,7 +102,17 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
             
             // Calculate direction vector from bodyA to bodyB (like reference)
             glm::vec2 r = bodyB->GetPosition() - bodyA->GetPosition();
-            float distanceSq = glm::dot(r, r) + softeningSq;
+            float distanceSq = glm::dot(r, r);
+            
+            // When collisions are disabled, use larger softening to prevent singularities
+            float effectiveSofteningSq = softeningSq;
+            if (!m_config.enableCollisions) {
+                // Use the sum of radii as minimum distance when collisions are off
+                float minDistance = bodyA->GetRadius() + bodyB->GetRadius();
+                effectiveSofteningSq = std::max(softeningSq, minDistance * minDistance);
+            }
+            
+            distanceSq += effectiveSofteningSq;
             
             if (distanceSq > MIN_DISTANCE * MIN_DISTANCE) {
                 // Calculate gravitational force exactly like reference:
@@ -175,6 +185,7 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
     // Leapfrog integration matching reference implementation
     const float dtDividedBy2 = deltaTime * 0.5f;
     const float damping = m_config.dampingFactor;
+    const float maxVelocity = 500.0f; // Maximum velocity to prevent instability
     
     for (auto& body : bodies) {
         if (body->IsFixed() || body->IsBeingDragged()) continue;
@@ -187,8 +198,20 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
         glm::vec2 force = body->GetForce();
         glm::vec2 acceleration = force / body->GetMass();
         
+        // Limit acceleration to prevent instability
+        float accelMagnitude = glm::length(acceleration);
+        if (accelMagnitude > MAX_FORCE / body->GetMass()) {
+            acceleration = acceleration * (MAX_FORCE / body->GetMass()) / accelMagnitude;
+        }
+        
         // Compute velocity (i + 1/2)
         velocity += acceleration * dtDividedBy2;
+        
+        // Limit velocity to prevent runaway situations
+        float velocityMagnitude = glm::length(velocity);
+        if (velocityMagnitude > maxVelocity) {
+            velocity = velocity * maxVelocity / velocityMagnitude;
+        }
         
         // Compute next position (i+1)
         position += velocity * deltaTime;
@@ -198,6 +221,12 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
         
         // Compute next velocity (i+1)
         velocity += acceleration * dtDividedBy2;
+        
+        // Limit final velocity again
+        velocityMagnitude = glm::length(velocity);
+        if (velocityMagnitude > maxVelocity) {
+            velocity = velocity * maxVelocity / velocityMagnitude;
+        }
         
         // Update body state
         body->SetPosition(position);
