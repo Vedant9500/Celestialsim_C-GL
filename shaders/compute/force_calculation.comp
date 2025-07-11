@@ -1,0 +1,53 @@
+#version 450 core
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+
+layout(std430, binding = 0) buffer PositionBuffer {
+    vec4 positions[];
+};
+
+layout(std430, binding = 1) buffer VelocityBuffer {
+    vec4 velocities[];
+};
+
+layout(std430, binding = 2) buffer MassBuffer {
+    float masses[];
+};
+
+layout(std430, binding = 3) buffer ForceBuffer {
+    vec4 forces[];
+};
+
+uniform int numParticles;
+uniform float gravitationalConstant;
+uniform float softening;
+
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    
+    if (index >= numParticles) {
+        return;
+    }
+    
+    vec3 position = positions[index].xyz;
+    vec3 totalForce = vec3(0.0);
+    
+    // Calculate gravitational forces from all other particles
+    for (uint j = 0; j < numParticles; ++j) {
+        if (index == j) {
+            continue;
+        }
+        
+        vec3 otherPosition = positions[j].xyz;
+        vec3 r = otherPosition - position;
+        float distance = length(r);
+        
+        // Apply softening to avoid singularities
+        float softDistance = distance + softening;
+        float force = gravitationalConstant * masses[index] * masses[j] / (softDistance * softDistance * softDistance);
+        
+        totalForce += force * r;
+    }
+    
+    forces[index] = vec4(totalForce, 0.0);
+}

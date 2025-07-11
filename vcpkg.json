@@ -1,0 +1,14 @@
+{
+    "name": "nbody-simulation",
+    "version": "1.0.0",
+    "description": "High-performance N-body gravitational simulation",
+    "dependencies": [
+        "glfw3",
+        "glew",
+        "glm",
+        {
+            "name": "imgui",
+            "features": ["opengl3-binding", "glfw-binding"]
+        }
+    ]
+}
