@@ -19,6 +19,7 @@ public:
     const glm::vec2& GetPosition() const { return m_position; }
     const glm::vec2& GetVelocity() const { return m_velocity; }
     const glm::vec2& GetAcceleration() const { return m_acceleration; }
+    const glm::vec2& GetForce() const { return m_force; }
     float GetMass() const { return m_mass; }
     float GetRadius() const { return m_radius; }
     const glm::vec3& GetColor() const { return m_color; }

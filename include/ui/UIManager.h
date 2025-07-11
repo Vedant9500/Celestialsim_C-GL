@@ -137,7 +137,7 @@ private:
     int m_trailLength = 100;
     
     // Physics settings
-    float m_gravitationalConstant = 6.674e-11f;
+    float m_gravitationalConstant = 100.0f;
     float m_timeStep = 0.016f;
     float m_softeningLength = 0.1f;
     bool m_useBarnesHut = true;

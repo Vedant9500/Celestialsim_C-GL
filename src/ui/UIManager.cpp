@@ -206,7 +206,7 @@ void UIManager::RenderControlPanel() {
     
     // Physics parameters with change detection
     if (ImGui::CollapsingHeader("Physics Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::SliderFloat("Gravity", &m_gravitationalConstant, 1e-12f, 1e-9f, "%.2e")) {
+        if (ImGui::SliderFloat("Gravity", &m_gravitationalConstant, 0.1f, 1000.0f, "%.1f")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
         if (ImGui::SliderFloat("Time Step", &m_timeStep, 0.001f, 0.1f, "%.3f")) {

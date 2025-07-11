@@ -40,7 +40,7 @@ struct EnergyStats {
  * @brief Configuration for physics simulation
  */
 struct PhysicsConfig {
-    float gravitationalConstant = 1.0f;  // Match reference implementation
+    float gravitationalConstant = 100.0f;  // Match UI default
     float timeStep = 0.016f;
     float softeningLength = 0.1f;
     float dampingFactor = 0.999f;

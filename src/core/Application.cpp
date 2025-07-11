@@ -123,6 +123,11 @@ bool Application::Initialize() {
         config.restitution = m_ui->GetRestitution();
     };
     
+    // Initial sync of physics parameters from UI
+    if (m_ui->OnPhysicsParameterChanged) {
+        m_ui->OnPhysicsParameterChanged();
+    }
+    
     m_ui->OnRenderParameterChanged = [this]() {
         // Update renderer parameters from UI
         m_renderer->SetShowTrails(m_ui->IsShowingTrails());

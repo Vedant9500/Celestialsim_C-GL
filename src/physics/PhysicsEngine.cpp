@@ -60,10 +60,9 @@ void PhysicsEngine::Update(std::vector<std::unique_ptr<Body>>& bodies, float del
 void PhysicsEngine::CalculateForces(std::vector<std::unique_ptr<Body>>& bodies) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    // Clear all forces and accelerations
+    // Clear all forces
     for (auto& body : bodies) {
         body->ClearForce();
-        body->SetAcceleration(glm::vec2(0.0f));
     }
     
     // Choose calculation method based on body count and settings
@@ -94,33 +93,33 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
         auto& bodyA = bodies[i];
         if (bodyA->IsFixed()) continue;
         
-        glm::vec2 totalAcceleration(0.0f);
+        glm::vec2 totalForce(0.0f);
         
         for (size_t j = 0; j < bodies.size(); ++j) {
             if (i == j) continue;
             
             auto& bodyB = bodies[j];
             
-            // Calculate direction vector from bodyA to bodyB
+            // Calculate direction vector from bodyA to bodyB (like reference)
             glm::vec2 r = bodyB->GetPosition() - bodyA->GetPosition();
             float distanceSq = glm::dot(r, r) + softeningSq;
             
             if (distanceSq > MIN_DISTANCE * MIN_DISTANCE) {
-                // Calculate gravitational acceleration (F/m = GMm/r^2 / m = GM/r^2)
-                float distance = std::sqrt(distanceSq);
-                float accelerationMagnitude = G * bodyB->GetMass() / distanceSq;
+                // Calculate gravitational force exactly like reference:
+                // F = G * m1 * m2 / (r² + ε²)^1.5 * r_unit
+                float distance = std::pow(distanceSq, 1.5f);
+                float forceMagnitude = (G * bodyA->GetMass() * bodyB->GetMass()) / distance;
                 
-                // Cap maximum acceleration to prevent instability
-                accelerationMagnitude = std::min(accelerationMagnitude, MAX_FORCE / bodyA->GetMass());
+                // Cap maximum force to prevent instability
+                forceMagnitude = std::min(forceMagnitude, MAX_FORCE);
                 
-                glm::vec2 accelerationDirection = r / distance;
-                totalAcceleration += accelerationMagnitude * accelerationDirection;
+                totalForce += forceMagnitude * r;
                 
                 m_stats.forceCalculations++;
             }
         }
         
-        bodyA->SetAcceleration(totalAcceleration);
+        bodyA->ApplyForce(totalForce);
     }
 }
 
@@ -183,7 +182,10 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
         // Get current state
         glm::vec2 position = body->GetPosition();
         glm::vec2 velocity = body->GetVelocity() * damping;
-        glm::vec2 acceleration = body->GetAcceleration();
+        
+        // Calculate acceleration from force: F = ma -> a = F/m
+        glm::vec2 force = body->GetForce();
+        glm::vec2 acceleration = force / body->GetMass();
         
         // Compute velocity (i + 1/2)
         velocity += acceleration * dtDividedBy2;
@@ -191,7 +193,9 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
         // Compute next position (i+1)
         position += velocity * deltaTime;
         
-        // Update acceleration is already done in force calculation
+        // Update acceleration for next frame (same as current since force doesn't change mid-step)
+        body->SetAcceleration(acceleration);
+        
         // Compute next velocity (i+1)
         velocity += acceleration * dtDividedBy2;
         
