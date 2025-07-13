@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <GL/glew.h>
 #include <vector>
 #include <memory>
 #include <chrono>
@@ -8,6 +9,7 @@
 namespace nbody {
 
 class Body;
+class ComputeShader;
 struct BodyArrays;
 
 /**
@@ -46,7 +48,7 @@ struct PhysicsConfig {
     float softeningLength = 0.1f;         // REF-style small softening for accuracy
     float dampingFactor = 1.0f;           // No damping by default (REF standard)
     bool useBarnesHut = true;
-    float barnesHutTheta = 0.5f;          // REF standard theta value
+    float barnesHutTheta = 0.25f;         // REF standard theta value (0.5 * 0.5)
     bool enableCollisions = true;
     float restitution = 0.8f;
     bool adaptiveTimeStep = false;
@@ -108,14 +110,16 @@ public:
     void SetRestitution(float restitution) { m_config.restitution = restitution; }
     void SetUseBarnesHut(bool use) { m_config.useBarnesHut = use; }
     void SetUseGPU(bool use) { m_config.useGPU = use; }
-
+    
+    // GPU availability
+    bool IsGPUAvailable() const { return m_gpuAvailable; }
+    
     // Statistics
     const PhysicsStats& GetStats() const { return m_stats; }
     EnergyStats CalculateEnergyStats(const std::vector<std::unique_ptr<Body>>& bodies) const;
     
     // Utility
     void Reset();
-    bool IsGPUAvailable() const { return m_gpuAvailable; }
     
     // Performance and debugging
     void BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies);  // REF-inspired benchmarking
@@ -157,18 +161,16 @@ private:
     };
     std::unique_ptr<BarnesHutTree> m_barnesHutTree;
     
-    // GPU compute specific
-    class GPUCompute {
-    public:
-        GPUCompute() = default;
-        ~GPUCompute() = default;
-        
-        bool Initialize() { return false; } // Stub - GPU not available
-        void CalculateForces(std::vector<std::unique_ptr<Body>>& /*bodies*/, float /*G*/, float /*softening*/) {
-            // Stub implementation
-        }
-    };
-    std::unique_ptr<GPUCompute> m_gpuCompute;
+    // GPU resources (temporarily disabled)
+    // std::unique_ptr<ComputeShader> m_forceComputeShader;
+    // std::unique_ptr<ComputeShader> m_integrationShader;
+    
+    // GPU buffers (temporarily disabled)
+    // GLuint m_positionBuffer = 0;
+    // GLuint m_velocityBuffer = 0;
+    // GLuint m_massBuffer = 0;
+    // GLuint m_forceBuffer = 0;
+    // size_t m_maxGPUParticles = 0;
     
     // Private methods
     void StartTimer();
@@ -196,6 +198,12 @@ private:
     // Utility
     void ConvertToArrays(const std::vector<std::unique_ptr<Body>>& bodies);
     void ConvertFromArrays(std::vector<std::unique_ptr<Body>>& bodies);
+    
+    // GPU helper methods (temporarily disabled)
+    // bool InitializeGPUBuffers(size_t particleCount);
+    // void UploadDataToGPU(const std::vector<std::unique_ptr<Body>>& bodies);
+    // void DownloadDataFromGPU(std::vector<std::unique_ptr<Body>>& bodies);
+    // void CleanupGPUBuffers();
 
     // Constants
     static constexpr float MIN_DISTANCE = 1e-6f;

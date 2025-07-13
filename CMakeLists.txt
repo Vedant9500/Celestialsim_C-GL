@@ -24,6 +24,7 @@ endif()
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glew REQUIRED)
+find_package(OpenMP REQUIRED)
 
 # Find GLM
 find_package(glm REQUIRED)
@@ -56,6 +57,7 @@ target_link_libraries(${PROJECT_NAME}
     GLEW::GLEW
     glm::glm
     imgui::imgui
+    OpenMP::OpenMP_CXX
 )
 
 # Copy shaders and assets to build directory

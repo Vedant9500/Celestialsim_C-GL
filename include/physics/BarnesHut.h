@@ -100,6 +100,7 @@ private:
     // Force calculation
     glm::vec2 CalculateForceRecursive(const QuadTreeNode* node, const Body& body, 
                                      float theta, float G) const;
+    glm::vec2 CalculateForceIterative(const Body& body, float theta, float G) const;
     
     // Utility
     void CalculateBounds(const std::vector<std::unique_ptr<Body>>& bodies,

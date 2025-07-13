@@ -81,6 +81,9 @@ bool Application::Initialize() {
         std::cerr << "Failed to initialize UI" << std::endl;
         return false;
     }
+    
+    // Set GPU availability in UI
+    m_ui->SetGPUAvailable(m_physics->IsGPUAvailable());
 
     // Set up callbacks
     glfwSetWindowSizeCallback(window, WindowSizeCallback);

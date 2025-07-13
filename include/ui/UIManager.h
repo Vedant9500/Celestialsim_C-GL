@@ -97,6 +97,9 @@ public:
     bool GetEnableCollisions() const { return m_enableCollisions; }
     float GetRestitution() const { return m_restitution; }
     
+    // GPU settings
+    void SetGPUAvailable(bool available) { m_gpuAvailable = available; }
+    
     // Camera state
     void SetCameraPosition(const glm::vec2& position) { m_cameraPosition = position; }
     void SetCameraZoom(float zoom) { m_cameraZoom = zoom; }
@@ -163,6 +166,7 @@ private:
     bool m_enableCollisions = true;
     float m_restitution = 0.8f;
     bool m_useGPU = false;
+    bool m_gpuAvailable = false;
     
     // Rendering settings
     float m_cameraZoom = 1.0f;
@@ -172,6 +176,7 @@ private:
     std::vector<float> m_fpsHistory;
     std::vector<float> m_energyHistory;
     size_t m_maxHistorySize = 100;
+    size_t m_energyHistoryIndex = 0;
     
     // File dialog state
     std::string m_configFilename = "config.json";

@@ -1,6 +1,9 @@
 #include "physics/PhysicsEngine.h"
 #include "physics/BarnesHut.h"
 #include "core/Body.h"
+// #include "rendering/ComputeShader.h"  // TODO: Enable when ComputeShader is ready
+#include <GL/glew.h>
+#include <omp.h>
 #include <iostream>
 #include <cmath>
 #include <algorithm>
@@ -20,15 +23,37 @@ PhysicsEngine::PhysicsEngine() {
     m_barnesHutTree = std::make_unique<BarnesHutTree>();
 }
 
-PhysicsEngine::~PhysicsEngine() = default;
+PhysicsEngine::~PhysicsEngine() {
+    // CleanupGPUBuffers();  // Disabled temporarily
+}
 
 bool PhysicsEngine::Initialize() {
-    // Check for GPU support
-    // For now, we'll implement CPU-only physics
-    m_gpuAvailable = false;
+    // Check for GPU compute shader support
+    GLint workGroupSizes[3];
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 0, &workGroupSizes[0]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 1, &workGroupSizes[1]);
+    glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &workGroupSizes[2]);
+    
+    // Check if compute shaders are supported (OpenGL 4.3+)
+    const GLubyte* version = glGetString(GL_VERSION);
+    std::cout << "OpenGL Version: " << version << std::endl;
+    
+    // Check compute shader support
+    GLint maxComputeWorkGroupInvocations;
+    glGetIntegerv(GL_MAX_COMPUTE_WORK_GROUP_INVOCATIONS, &maxComputeWorkGroupInvocations);
+    
+    // Enable GPU if compute shaders are supported and we have reasonable limits
+    m_gpuAvailable = (maxComputeWorkGroupInvocations > 0 && workGroupSizes[0] >= 64);
     
     std::cout << "Physics Engine initialized" << std::endl;
+    std::cout << "Max compute work group size: " << workGroupSizes[0] << "x" << workGroupSizes[1] << "x" << workGroupSizes[2] << std::endl;
+    std::cout << "Max work group invocations: " << maxComputeWorkGroupInvocations << std::endl;
     std::cout << "GPU Acceleration: " << (m_gpuAvailable ? "Available" : "Not Available") << std::endl;
+    
+    // Initialize GPU resources if available
+    if (m_gpuAvailable) {
+        std::cout << "Setting up GPU compute shaders..." << std::endl;
+    }
     
     return true;
 }
@@ -103,15 +128,16 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
     
     m_stats.forceCalculations = 0;
     
-    // REF-style force calculation for better numerical stability
-    for (size_t i = 0; i < bodies.size(); ++i) {
+    // REF-style parallel force calculation for better performance
+    #pragma omp parallel for schedule(static) shared(bodies)
+    for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
         auto& bodyA = bodies[i];
         if (bodyA->IsFixed()) continue;
         
         glm::vec2 totalForce(0.0f);
         
         for (size_t j = 0; j < bodies.size(); ++j) {
-            if (i == j) continue;
+            if (static_cast<size_t>(i) == j) continue;
             
             auto& bodyB = bodies[j];
             
@@ -130,10 +156,11 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
                 float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
                 
                 // Cap maximum force to prevent instability
-                forceMagnitude = std::min(forceMagnitude, MAX_FORCE / bodyB->GetMass());
+                forceMagnitude = std::min(forceMagnitude, MAX_FORCE);
                 
                 totalForce += forceMagnitude * vector_i_j;
                 
+                #pragma omp atomic
                 m_stats.forceCalculations++;
             }
         }
@@ -156,23 +183,22 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
     const float theta = m_config.barnesHutTheta;
     
     // Calculate forces using Barnes-Hut approximation
-    std::for_each(std::execution::par_unseq, bodies.begin(), bodies.end(),
-        [&](std::unique_ptr<Body>& body) {
-            if (body->IsFixed()) return;
-            
-            glm::vec2 force = m_barnesHutTree->CalculateForce(*body, theta, G);
-            body->ApplyForce(force);
-        });
+    // Use sequential execution to avoid race conditions with stats
+    for (auto& body : bodies) {
+        if (body->IsFixed()) continue;
+        
+        glm::vec2 force = m_barnesHutTree->CalculateForce(*body, theta, G);
+        body->ApplyForce(force);
+    }
     
     auto treeStats = m_barnesHutTree->GetStats();
     m_stats.forceCalculations = treeStats.forceCalculations;
 }
 
 void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodies) {
-    // GPU implementation would go here
-    // For now, fallback to direct calculation
+    // GPU implementation temporarily disabled - need to build ComputeShader first
     CalculateForcesDirect(bodies);
-    m_stats.method = "Direct (GPU fallback)";
+    m_stats.method = "Direct (GPU disabled)";
 }
 
 void PhysicsEngine::IntegrateMotion(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
@@ -206,8 +232,7 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
         glm::vec2 force = body->GetForce();
         
         // Calculate acceleration from force: F = ma -> a = F/m
-        // Note: In our force calculation, mass is already included, so force = acceleration
-        glm::vec2 acceleration = force; // REF comment: "M is cancelled when calculating gravity force"
+        glm::vec2 acceleration = force / body->GetMass();
         
         // Step 1: Compute velocity at half timestep (i + 1/2)
         velocity += acceleration * dtDividedBy2;
@@ -531,5 +556,138 @@ void PhysicsEngine::BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies)
     
     std::cout << "=== Benchmark Complete ===" << std::endl;
 }
+
+// GPU Helper Methods Implementation (Temporarily disabled)
+/*
+bool PhysicsEngine::InitializeGPUBuffers(size_t particleCount) {
+    if (particleCount <= m_maxGPUParticles && m_positionBuffer != 0) {
+        return true; // Already initialized with sufficient capacity
+    }
+    
+    // Clean up existing buffers
+    CleanupGPUBuffers();
+    
+    // Create compute shaders if not already done
+    if (!m_forceComputeShader) {
+        m_forceComputeShader = std::make_unique<ComputeShader>();
+        if (!m_forceComputeShader->LoadFromFile("shaders/compute/force_calculation.comp")) {
+            std::cerr << "Failed to load force calculation compute shader" << std::endl;
+            return false;
+        }
+    }
+    
+    // Create GPU buffers
+    m_maxGPUParticles = particleCount * 2; // Allow some growth
+    
+    // Position buffer (vec4)
+    glGenBuffers(1, &m_positionBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_positionBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, m_maxGPUParticles * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_positionBuffer);
+    
+    // Velocity buffer (vec4)  
+    glGenBuffers(1, &m_velocityBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_velocityBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, m_maxGPUParticles * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_velocityBuffer);
+    
+    // Mass buffer (float)
+    glGenBuffers(1, &m_massBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_massBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, m_maxGPUParticles * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_massBuffer);
+    
+    // Force buffer (vec4)
+    glGenBuffers(1, &m_forceBuffer);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_forceBuffer);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, m_maxGPUParticles * 4 * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 3, m_forceBuffer);
+    
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    
+    return true;
+}
+
+void PhysicsEngine::UploadDataToGPU(const std::vector<std::unique_ptr<Body>>& bodies) {
+    if (m_positionBuffer == 0) return;
+    
+    std::vector<float> positions, velocities, masses;
+    positions.reserve(bodies.size() * 4);
+    velocities.reserve(bodies.size() * 4);
+    masses.reserve(bodies.size());
+    
+    for (const auto& body : bodies) {
+        const auto& pos = body->GetPosition();
+        const auto& vel = body->GetVelocity();
+        
+        positions.push_back(pos.x);
+        positions.push_back(pos.y);
+        positions.push_back(0.0f); // z component
+        positions.push_back(1.0f); // w component
+        
+        velocities.push_back(vel.x);
+        velocities.push_back(vel.y);
+        velocities.push_back(0.0f); // z component
+        velocities.push_back(0.0f); // w component
+        
+        masses.push_back(body->GetMass());
+    }
+    
+    // Upload to GPU
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_positionBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, positions.size() * sizeof(float), positions.data());
+    
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_velocityBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, velocities.size() * sizeof(float), velocities.data());
+    
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_massBuffer);
+    glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, masses.size() * sizeof(float), masses.data());
+    
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void PhysicsEngine::DownloadDataFromGPU(std::vector<std::unique_ptr<Body>>& bodies) {
+    if (m_forceBuffer == 0) return;
+    
+    std::vector<float> forces(bodies.size() * 4);
+    
+    // Download forces from GPU
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_forceBuffer);
+    float* forceData = (float*)glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
+    
+    if (forceData) {
+        std::copy(forceData, forceData + forces.size(), forces.begin());
+        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
+        
+        // Apply forces to bodies
+        for (size_t i = 0; i < bodies.size(); ++i) {
+            glm::vec2 force(forces[i * 4], forces[i * 4 + 1]);
+            bodies[i]->ApplyForce(force);
+        }
+    }
+    
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void PhysicsEngine::CleanupGPUBuffers() {
+    if (m_positionBuffer != 0) {
+        glDeleteBuffers(1, &m_positionBuffer);
+        m_positionBuffer = 0;
+    }
+    if (m_velocityBuffer != 0) {
+        glDeleteBuffers(1, &m_velocityBuffer);
+        m_velocityBuffer = 0;
+    }
+    if (m_massBuffer != 0) {
+        glDeleteBuffers(1, &m_massBuffer);
+        m_massBuffer = 0;
+    }
+    if (m_forceBuffer != 0) {
+        glDeleteBuffers(1, &m_forceBuffer);
+        m_forceBuffer = 0;
+    }
+    m_maxGPUParticles = 0;
+}
+*/
 
 } // namespace nbody

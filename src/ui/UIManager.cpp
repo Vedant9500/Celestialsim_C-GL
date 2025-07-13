@@ -252,8 +252,13 @@ void UIManager::RenderControlPanel() {
             ImGui::SameLine(); ShowHelpMarker("0 = perfectly inelastic, 1 = perfectly elastic");
         }
         
+        ImGui::BeginDisabled(!m_gpuAvailable);
         if (ImGui::Checkbox("GPU Compute", &m_useGPU)) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
+        }
+        ImGui::EndDisabled();
+        if (!m_gpuAvailable) {
+            ImGui::SameLine(); ShowHelpMarker("GPU compute shaders not implemented yet");
         }
     }
     
@@ -359,7 +364,7 @@ void UIManager::RenderControlPanel() {
     
     // Camera controls
     if (ImGui::CollapsingHeader("Camera")) {
-        if (ImGui::Button("Reset Camera", ImVec2(-1, 0))) {
+        if (ImGui::Button("Reset Camera##main", ImVec2(-1, 0))) {
             if (OnResetCamera) OnResetCamera();
         }
         if (ImGui::Button("Fit All Bodies", ImVec2(-1, 0))) {
@@ -434,12 +439,11 @@ void UIManager::RenderStatsPanel(const std::vector<std::unique_ptr<Body>>& bodie
         ImGui::Text("Total: %.2e", energyStats.total);
         
         // Update energy history
-        static size_t historyIndex = 0;
-        m_energyHistory[historyIndex] = static_cast<float>(energyStats.total);
-        historyIndex = (historyIndex + 1) % m_maxHistorySize;
+        m_energyHistory[m_energyHistoryIndex] = static_cast<float>(energyStats.total);
+        m_energyHistoryIndex = (m_energyHistoryIndex + 1) % m_maxHistorySize;
         
         // Plot energy graph
-        ImGui::PlotLines("Energy", m_energyHistory.data(), static_cast<int>(m_energyHistory.size()), 0, nullptr, FLT_MAX, FLT_MAX, ImVec2(0, 80));
+        ImGui::PlotLines("Energy##plot", m_energyHistory.data(), static_cast<int>(m_energyHistory.size()), 0, nullptr, FLT_MAX, FLT_MAX, ImVec2(0, 80));
     }
     
     // Performance stats
@@ -530,7 +534,7 @@ void UIManager::RenderDebugPanel() {
     ImGui::Text("Camera Position: (%.2f, %.2f)", m_cameraPosition.x, m_cameraPosition.y);
     ImGui::Text("Camera Zoom: %.2f", m_cameraZoom);
     
-    if (ImGui::Button("Reset Camera")) {
+    if (ImGui::Button("Reset Camera##debug")) {
         m_cameraPosition = glm::vec2(0.0f);
         m_cameraZoom = 1.0f;
     }
