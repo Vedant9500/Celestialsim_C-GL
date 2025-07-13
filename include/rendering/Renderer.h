@@ -36,7 +36,7 @@ struct Camera {
         return glm::ortho(-aspect, aspect, -1.0f, 1.0f, -1.0f, 1.0f);
     }
     
-    void Update(float deltaTime) {
+    void Update(float /*deltaTime*/) {
         zoom += (targetZoom - zoom) * zoomSpeed;
     }
 };

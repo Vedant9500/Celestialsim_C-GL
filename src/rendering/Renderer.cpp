@@ -271,7 +271,7 @@ bool Renderer::InitializeBuffers() {
 }
 
 RenderStats Renderer::Render(const std::vector<std::unique_ptr<Body>>& bodies,
-                             const PhysicsEngine& physics,
+                             const PhysicsEngine& /*physics*/,
                              const Body* selectedBody) {
     StartTimer();
     
@@ -282,7 +282,7 @@ RenderStats Renderer::Render(const std::vector<std::unique_ptr<Body>>& bodies,
     glClear(GL_COLOR_BUFFER_BIT);
     
     // Set up matrices
-    glm::mat4 projection = m_camera.GetProjectionMatrix(m_windowWidth, m_windowHeight);
+    glm::mat4 projection = m_camera.GetProjectionMatrix(static_cast<float>(m_windowWidth), static_cast<float>(m_windowHeight));
     glm::mat4 view = m_camera.GetViewMatrix();
     
     // Render bodies
@@ -323,7 +323,7 @@ void Renderer::RenderBodies() {
     m_bodyShader->Use();
     
     // Set matrices
-    glm::mat4 projection = m_camera.GetProjectionMatrix(m_windowWidth, m_windowHeight);
+    glm::mat4 projection = m_camera.GetProjectionMatrix(static_cast<float>(m_windowWidth), static_cast<float>(m_windowHeight));
     glm::mat4 view = m_camera.GetViewMatrix();
     
     m_bodyShader->SetMat4("uProjection", projection);

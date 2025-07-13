@@ -23,7 +23,7 @@ std::vector<std::unique_ptr<Body>> GalaxyInitializer::generateParticles(
     float bulgeRadius = galaxyRadius * 0.2f;
     
     // Calculate particle counts
-    size_t bulgeParticles = static_cast<size_t>(numParticles * m_centralMassRatio);
+    auto bulgeParticles = static_cast<size_t>(numParticles * m_centralMassRatio);
     size_t spiralParticles = numParticles - bulgeParticles;
     
     // Generate bulge particles

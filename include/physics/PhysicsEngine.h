@@ -134,11 +134,11 @@ private:
         BarnesHutTree() = default;
         ~BarnesHutTree() = default;
         
-        void BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) {
+        void BuildTree(const std::vector<std::unique_ptr<Body>>& /*bodies*/) {
             // Stub implementation
         }
         
-        glm::vec2 CalculateForce(const Body& body, float theta, float G) {
+        glm::vec2 CalculateForce(const Body& /*body*/, float /*theta*/, float /*G*/) {
             // Stub implementation - return zero force for now
             return glm::vec2(0.0f);
         }
@@ -161,7 +161,7 @@ private:
         ~GPUCompute() = default;
         
         bool Initialize() { return false; } // Stub - GPU not available
-        void CalculateForces(std::vector<std::unique_ptr<Body>>& bodies, float G, float softening) {
+        void CalculateForces(std::vector<std::unique_ptr<Body>>& /*bodies*/, float /*G*/, float /*softening*/) {
             // Stub implementation
         }
     };

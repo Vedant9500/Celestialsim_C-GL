@@ -328,7 +328,7 @@ void Application::OnMouseMove(double x, double y) {
     m_mousePosition = glm::vec2(static_cast<float>(x), static_cast<float>(y));
 }
 
-void Application::OnMouseButton(int button, int action, int mods) {
+void Application::OnMouseButton(int button, int action, int /*mods*/) {
     if (m_ui->IsMouseOverUI()) {
         return; // Don't handle simulation input when over UI
     }
@@ -389,7 +389,7 @@ void Application::OnMouseButton(int button, int action, int mods) {
     }
 }
 
-void Application::OnMouseScroll(double xOffset, double yOffset) {
+void Application::OnMouseScroll(double /*xOffset*/, double yOffset) {
     if (m_ui->IsMouseOverUI()) {
         return;
     }
@@ -402,7 +402,7 @@ void Application::OnMouseScroll(double xOffset, double yOffset) {
     }
 }
 
-void Application::OnKeyboard(int key, int scancode, int action, int mods) {
+void Application::OnKeyboard(int key, int /*scancode*/, int action, int /*mods*/) {
     if (action == GLFW_PRESS) {
         switch (key) {
             case GLFW_KEY_SPACE:
@@ -590,7 +590,7 @@ void Application::SpawnBodies(int count, int pattern) {
                 break;
             }
             case 2: { // Grid
-                int gridSize = std::ceil(std::sqrt(count));
+                auto gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
                 int row = i / gridSize;
                 int col = i % gridSize;
                 float spacing = 2.0f * radius / gridSize;
@@ -675,12 +675,12 @@ void Application::KeyCallback(GLFWwindow* window, int key, int scancode, int act
     }
 }
 
-void Application::CharCallback(GLFWwindow* window, unsigned int codepoint) {
+void Application::CharCallback(GLFWwindow* /*window*/, unsigned int codepoint) {
     // Forward to ImGui first
-    ImGui_ImplGlfw_CharCallback(window, codepoint);
+    ImGui_ImplGlfw_CharCallback(glfwGetCurrentContext(), codepoint);
 }
 
-void Application::WindowSizeCallback(GLFWwindow* window, int width, int height) {
+void Application::WindowSizeCallback(GLFWwindow* /*window*/, int width, int height) {
     if (s_instance) {
         s_instance->OnWindowResize(width, height);
     }
