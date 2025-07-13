@@ -266,6 +266,18 @@ void Application::HandleInput() {
     } else {
         panning = false;
     }
+    
+    // Handle Delete key to delete selected body
+    static bool deleteKeyPressed = false;
+    bool deleteKeyDown = glfwGetKey(window, GLFW_KEY_DELETE) == GLFW_PRESS;
+    
+    if (deleteKeyDown && !deleteKeyPressed && m_selectedBody) {
+        // Delete key was just pressed and we have a selected body
+        RemoveBody(m_selectedBody);
+        m_selectedBody = nullptr;
+        m_draggedBody = nullptr;
+    }
+    deleteKeyPressed = deleteKeyDown;
 }
 
 void Application::UpdatePhysics(float deltaTime) {
@@ -407,6 +419,11 @@ void Application::OnKeyboard(int key, int scancode, int action, int mods) {
                 break;
             case GLFW_KEY_C:
                 ClearBodies();
+                break;
+            case GLFW_KEY_DELETE:
+                if (m_selectedBody != nullptr) {
+                    RemoveBody(m_selectedBody);
+                }
                 break;
             case GLFW_KEY_ESCAPE:
                 glfwSetWindowShouldClose(glfwGetCurrentContext(), GLFW_TRUE);
