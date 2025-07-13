@@ -8,4 +8,6 @@ if not exist build\Release\NBodySimulation.exe (
 )
 
 cd build
+echo Starting simulation...
 Release\NBodySimulation.exe
+cd ..

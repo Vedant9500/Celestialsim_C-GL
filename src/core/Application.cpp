@@ -442,6 +442,13 @@ void Application::AddBody(const glm::vec2& position, const glm::vec2& velocity, 
     m_bodies.push_back(std::move(body));
 }
 
+void Application::AddBody(const glm::vec2& position, const glm::vec2& velocity, float mass, 
+                         float density, const glm::vec3& color) {
+    auto body = std::make_unique<Body>(position, velocity, mass, color);
+    body->SetDensity(density);
+    m_bodies.push_back(std::move(body));
+}
+
 void Application::RemoveBody(Body* body) {
     auto it = std::find_if(m_bodies.begin(), m_bodies.end(),
         [body](const std::unique_ptr<Body>& b) { return b.get() == body; });
@@ -492,65 +499,350 @@ void Application::LoadPreset(const std::string& name) {
         CreateGalaxySpiral();
     } else if (name == "Random Cluster") {
         CreateRandomCluster(50);
+    } else if (name == "Triple Star") {
+        CreateTripleStarSystem();
+    } else if (name == "Figure Eight") {
+        CreateFigureEight();
+    } else if (name == "Collision Course") {
+        CreateCollisionCourse();
     }
 }
 
 void Application::CreateSolarSystem() {
-    // Sun
-    AddBody(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 1000.0f);
+    // PHYSICALLY ACCURATE SOLAR SYSTEM
+    // Proper scaling maintaining all physics relationships
     
-    // Planets (simplified)
-    AddBody(glm::vec2(2.0f, 0.0f), glm::vec2(0.0f, 15.0f), 10.0f);  // Mercury-like
-    AddBody(glm::vec2(3.0f, 0.0f), glm::vec2(0.0f, 12.0f), 15.0f);  // Venus-like
-    AddBody(glm::vec2(4.0f, 0.0f), glm::vec2(0.0f, 10.0f), 20.0f);  // Earth-like
-    AddBody(glm::vec2(6.0f, 0.0f), glm::vec2(0.0f, 8.0f), 12.0f);   // Mars-like
+    float G = m_physics->GetConfig().gravitationalConstant;
+    
+    // === REAL SOLAR SYSTEM DATA ===
+    // Real masses relative to Earth (Earth = 1.0)
+    const float earthMass = 1.0f;
+    const float sunMass = 332946.0f * earthMass;    // Real mass ratio
+    const float mercuryMass = 0.0553f * earthMass;
+    const float venusMass = 0.815f * earthMass;
+    const float marsMass = 0.107f * earthMass;
+    const float jupiterMass = 318.0f * earthMass;
+    const float saturnMass = 95.2f * earthMass;
+    const float uranusMass = 14.5f * earthMass;
+    const float neptuneMass = 17.1f * earthMass;
+    
+    // Real radii relative to Earth (Earth radius = 1.0)
+    const float earthRadius = 1.0f;
+    const float sunRadius = 109.3f * earthRadius;    // Real size ratio
+    const float mercuryRadius = 0.383f * earthRadius;
+    const float venusRadius = 0.949f * earthRadius;
+    const float marsRadius = 0.532f * earthRadius;
+    const float jupiterRadius = 11.21f * earthRadius;
+    const float saturnRadius = 9.45f * earthRadius;
+    const float uranusRadius = 4.01f * earthRadius;
+    const float neptuneRadius = 3.88f * earthRadius;
+    
+    // === SCALING FOR SIMULATION ===
+    // Scale factor: Make Earth orbit ~200 units for good visibility
+    const float AU = 200.0f; // 1 AU = 200 simulation units
+    
+    // Orbital distances
+    const float mercuryDist = 0.39f * AU;   // ~78 units
+    const float venusDist = 0.72f * AU;     // ~144 units  
+    const float earthDist = 1.0f * AU;      // 200 units
+    const float marsDist = 1.52f * AU;      // ~304 units
+    const float jupiterDist = 5.20f * AU;   // ~1040 units
+    const float saturnDist = 9.54f * AU;    // ~1908 units
+    const float uranusDist = 19.19f * AU;   // ~3838 units
+    const float neptuneDist = 30.07f * AU;  // ~6014 units
+    
+    // Scale masses down for numerical stability but keep ratios
+    const float massScale = 0.01f; // Scale all masses down
+    
+    // Visual size scaling: Make bodies visible but maintain relative sizes
+    // Use density to control visual size (radius = sqrt(mass/(π*density)))
+    // Higher density = smaller visual size for same mass
+    const float baseDensity = 50.0f; // High base density for small sizes
+    
+    // Calculate densities to achieve realistic relative sizes
+    // We want: visual_radius ∝ real_radius, so density ∝ mass/real_radius²
+    const float sunDensity = baseDensity * (sunMass * massScale) / (sunRadius * sunRadius) * 0.01f; // Extra small Sun
+    const float mercuryDensity = baseDensity * (mercuryMass * massScale) / (mercuryRadius * mercuryRadius);
+    const float venusDensity = baseDensity * (venusMass * massScale) / (venusRadius * venusRadius);
+    const float earthDensity = baseDensity * (earthMass * massScale) / (earthRadius * earthRadius);
+    const float marsDensity = baseDensity * (marsMass * massScale) / (marsRadius * marsRadius);
+    const float jupiterDensity = baseDensity * (jupiterMass * massScale) / (jupiterRadius * jupiterRadius);
+    const float saturnDensity = baseDensity * (saturnMass * massScale) / (saturnRadius * saturnRadius);
+    const float uranusDensity = baseDensity * (uranusMass * massScale) / (uranusRadius * uranusRadius);
+    const float neptuneDensity = baseDensity * (neptuneMass * massScale) / (neptuneRadius * neptuneRadius);
+    
+    // Colors
+    glm::vec3 sunColor(1.0f, 1.0f, 0.8f);      // Yellow
+    glm::vec3 mercuryColor(0.8f, 0.7f, 0.7f);  // Gray
+    glm::vec3 venusColor(1.0f, 0.8f, 0.0f);    // Yellow-orange
+    glm::vec3 earthColor(0.2f, 0.5f, 1.0f);    // Blue
+    glm::vec3 marsColor(1.0f, 0.4f, 0.2f);     // Red
+    glm::vec3 jupiterColor(1.0f, 0.7f, 0.3f);  // Orange-brown
+    glm::vec3 saturnColor(1.0f, 1.0f, 0.8f);   // Pale yellow
+    glm::vec3 uranusColor(0.3f, 0.8f, 1.0f);   // Light blue
+    glm::vec3 neptuneColor(0.2f, 0.3f, 1.0f);  // Deep blue
+    
+    // Scale Sun mass for physics (reduce for stability but maintain gravitational dominance)
+    float sunMassForPhysics = sunMass * massScale;
+    
+    // Create the Sun
+    AddBody(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 
+            sunMassForPhysics, sunDensity, sunColor);
+    
+    // Create planets with proper orbital velocities: v = sqrt(GM/r)
+    float mercuryVel = std::sqrt(G * sunMassForPhysics / mercuryDist);
+    AddBody(glm::vec2(mercuryDist, 0.0f), glm::vec2(0.0f, mercuryVel),
+            mercuryMass * massScale, mercuryDensity, mercuryColor);
+    
+    float venusVel = std::sqrt(G * sunMassForPhysics / venusDist);
+    AddBody(glm::vec2(venusDist, 0.0f), glm::vec2(0.0f, venusVel),
+            venusMass * massScale, venusDensity, venusColor);
+    
+    float earthVel = std::sqrt(G * sunMassForPhysics / earthDist);
+    AddBody(glm::vec2(earthDist, 0.0f), glm::vec2(0.0f, earthVel),
+            earthMass * massScale, earthDensity, earthColor);
+    
+    float marsVel = std::sqrt(G * sunMassForPhysics / marsDist);
+    AddBody(glm::vec2(marsDist, 0.0f), glm::vec2(0.0f, marsVel),
+            marsMass * massScale, marsDensity, marsColor);
+    
+    float jupiterVel = std::sqrt(G * sunMassForPhysics / jupiterDist);
+    AddBody(glm::vec2(jupiterDist, 0.0f), glm::vec2(0.0f, jupiterVel),
+            jupiterMass * massScale, jupiterDensity, jupiterColor);
+    
+    float saturnVel = std::sqrt(G * sunMassForPhysics / saturnDist);
+    AddBody(glm::vec2(saturnDist, 0.0f), glm::vec2(0.0f, saturnVel),
+            saturnMass * massScale, saturnDensity, saturnColor);
+    
+    float uranusVel = std::sqrt(G * sunMassForPhysics / uranusDist);
+    AddBody(glm::vec2(uranusDist, 0.0f), glm::vec2(0.0f, uranusVel),
+            uranusMass * massScale, uranusDensity, uranusColor);
+    
+    float neptuneVel = std::sqrt(G * sunMassForPhysics / neptuneDist);
+    AddBody(glm::vec2(neptuneDist, 0.0f), glm::vec2(0.0f, neptuneVel),
+            neptuneMass * massScale, neptuneDensity, neptuneColor);
 }
 
 void Application::CreateBinarySystem() {
-    AddBody(glm::vec2(-2.0f, 0.0f), glm::vec2(0.0f, 5.0f), 500.0f);
-    AddBody(glm::vec2(2.0f, 0.0f), glm::vec2(0.0f, -5.0f), 500.0f);
+    // Create a proper binary system with center of mass at origin
+    float mass1 = 15.0f;
+    float mass2 = 20.0f;
+    float separation = 60.0f;  // Much larger separation
+    
+    // Calculate center of mass positions
+    float totalMass = mass1 + mass2;
+    float r1 = separation * mass2 / totalMass;  // Distance of mass1 from COM
+    float r2 = separation * mass1 / totalMass;  // Distance of mass2 from COM
+    
+    // Calculate orbital velocity for circular orbit
+    float G = m_physics->GetConfig().gravitationalConstant;
+    float v1 = std::sqrt(G * mass2 * mass2 / (totalMass * separation));
+    float v2 = std::sqrt(G * mass1 * mass1 / (totalMass * separation));
+    
+    // Position bodies on opposite sides of center of mass
+    AddBody(glm::vec2(-r1, 0.0f), glm::vec2(0.0f, v1), mass1);
+    AddBody(glm::vec2(r2, 0.0f), glm::vec2(0.0f, -v2), mass2);
+    
+    // Add some smaller bodies in interesting orbits around the binary system
+    AddBody(glm::vec2(0.0f, 80.0f), glm::vec2(6.0f, 0.0f), 2.0f);    // High orbit
+    AddBody(glm::vec2(0.0f, -90.0f), glm::vec2(-5.5f, 0.0f), 3.0f); // Opposite orbit
+    AddBody(glm::vec2(100.0f, 0.0f), glm::vec2(0.0f, 4.0f), 2.5f);  // Distant orbit
 }
 
 void Application::CreateGalaxySpiral() {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
-    std::uniform_real_distribution<float> radiusDist(1.0f, 10.0f);
-    std::uniform_real_distribution<float> massDist(1.0f, 10.0f);
+    std::uniform_real_distribution<float> radiusDist(20.0f, 150.0f);  // Much larger range
+    std::uniform_real_distribution<float> massDist(0.5f, 2.0f);       // Smaller masses
+    std::uniform_real_distribution<float> armNoise(-0.3f, 0.3f);      // Angular noise
     
-    // Central black hole
-    AddBody(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 2000.0f);
+    // Central supermassive object
+    AddBody(glm::vec2(0.0f, 0.0f), glm::vec2(0.0f, 0.0f), 50.0f);  // Smaller central mass
     
-    // Spiral arms
-    for (int i = 0; i < 100; ++i) {
-        float angle = angleDist(gen);
-        float radius = radiusDist(gen);
-        float mass = massDist(gen);
+    float G = m_physics->GetConfig().gravitationalConstant;
+    float centralMass = 50.0f;
+    
+    // Create spiral arms
+    int armsCount = 2;
+    int particlesPerArm = 40;
+    
+    for (int arm = 0; arm < armsCount; ++arm) {
+        float armOffset = (2.0f * 3.14159f * arm) / armsCount;
         
+        for (int i = 0; i < particlesPerArm; ++i) {
+            float t = static_cast<float>(i) / particlesPerArm;
+            float radius = 20.0f + t * 130.0f;  // Spiral outward from 20 to 150
+            float spiralTightness = 1.5f;
+            float angle = armOffset + spiralTightness * t * 4.0f * 3.14159f + armNoise(gen);
+            
+            glm::vec2 position(radius * std::cos(angle), radius * std::sin(angle));
+            
+            // Calculate stable orbital velocity with some randomness
+            float baseSpeed = std::sqrt(G * centralMass / radius);
+            float speedVariation = 0.8f + 0.4f * static_cast<float>(rand()) / RAND_MAX;
+            float speed = baseSpeed * speedVariation;
+            
+            glm::vec2 velocity(-speed * std::sin(angle), speed * std::cos(angle));
+            
+            // Add some random velocity component
+            velocity += glm::vec2(armNoise(gen) * 1.0f, armNoise(gen) * 1.0f);
+            
+            float mass = massDist(gen);
+            AddBody(position, velocity, mass);
+        }
+    }
+    
+    // Add some random halo particles
+    std::uniform_real_distribution<float> haloDist(150.0f, 200.0f);
+    for (int i = 0; i < 15; ++i) {
+        float angle = angleDist(gen);
+        float radius = haloDist(gen);
         glm::vec2 position(radius * std::cos(angle), radius * std::sin(angle));
         
-        // Calculate orbital velocity
-        float speed = std::sqrt(6.674e-11f * 2000.0f / radius);
+        float speed = std::sqrt(G * centralMass / radius) * 0.7f; // Slower halo
         glm::vec2 velocity(-speed * std::sin(angle), speed * std::cos(angle));
         
-        AddBody(position, velocity, mass);
+        AddBody(position, velocity, massDist(gen) * 0.5f);
     }
 }
 
 void Application::CreateRandomCluster(int count) {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> posDist(-5.0f, 5.0f);
-    std::uniform_real_distribution<float> velDist(-2.0f, 2.0f);
-    std::uniform_real_distribution<float> massDist(1.0f, 20.0f);
+    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
+    std::uniform_real_distribution<float> radiusDist(10.0f, 100.0f);  // Much larger area
+    std::uniform_real_distribution<float> velDist(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> massDist(1.0f, 8.0f);       // Smaller masses
     
+    std::vector<glm::vec2> positions;
+    positions.reserve(count);
+    
+    // Generate non-overlapping positions
     for (int i = 0; i < count; ++i) {
-        glm::vec2 position(posDist(gen), posDist(gen));
-        glm::vec2 velocity(velDist(gen), velDist(gen));
-        float mass = massDist(gen);
+        glm::vec2 position;
+        bool validPosition = false;
+        int attempts = 0;
         
-        AddBody(position, velocity, mass);
+        while (!validPosition && attempts < 100) {
+            // Try random position in circular area
+            float angle = angleDist(gen);
+            float radius = radiusDist(gen);
+            position = glm::vec2(radius * std::cos(angle), radius * std::sin(angle));
+            
+            // Check minimum distance from existing bodies
+            validPosition = true;
+            float minDistance = 8.0f; // Larger minimum separation
+            
+            for (const auto& existingPos : positions) {
+                if (glm::length(position - existingPos) < minDistance) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            attempts++;
+        }
+        
+        if (validPosition) {
+            positions.push_back(position);
+            
+            // Add some random velocity
+            glm::vec2 velocity(velDist(gen), velDist(gen));
+            float mass = massDist(gen);
+            
+            AddBody(position, velocity, mass);
+        }
     }
+}
+
+void Application::CreateTripleStarSystem() {
+    // Create a stable triple star system with hierarchical structure
+    float G = m_physics->GetConfig().gravitationalConstant;
+    
+    // Inner binary pair - much smaller masses, larger separation
+    float mass1 = 8.0f;
+    float mass2 = 6.0f;
+    float innerSeparation = 40.0f;
+    
+    // Calculate center of mass for inner binary
+    float totalInner = mass1 + mass2;
+    float r1 = innerSeparation * mass2 / totalInner;
+    float r2 = innerSeparation * mass1 / totalInner;
+    
+    // Orbital velocity for inner binary
+    float v_inner = std::sqrt(G * totalInner / innerSeparation);
+    
+    // Position inner binary stars
+    AddBody(glm::vec2(-r1, 0.0f), glm::vec2(0.0f, v_inner * mass2 / totalInner), mass1);
+    AddBody(glm::vec2(r2, 0.0f), glm::vec2(0.0f, -v_inner * mass1 / totalInner), mass2);
+    
+    // Third star in distant orbit
+    float mass3 = 10.0f;
+    float outerDistance = 120.0f;
+    float v_outer = std::sqrt(G * (totalInner + mass3) / outerDistance) * 0.8f; // Slightly elliptical
+    
+    AddBody(glm::vec2(outerDistance, 0.0f), glm::vec2(0.0f, -v_outer), mass3);
+    
+    // Add a few test particles - larger distances
+    AddBody(glm::vec2(-80.0f, 60.0f), glm::vec2(2.0f, 1.0f), 1.0f);
+    AddBody(glm::vec2(80.0f, -60.0f), glm::vec2(-1.5f, 2.0f), 1.0f);
+}
+
+void Application::CreateFigureEight() {
+    // Famous figure-8 solution discovered by Moore and Chenciner
+    // Three equal masses in a figure-8 orbit
+    float mass = 5.0f;  // Much smaller mass
+    
+    // Initial positions (approximate) - scaled up significantly
+    float scale = 30.0f;
+    AddBody(glm::vec2(-0.97000436f * scale, 0.24308753f * scale), 
+            glm::vec2(0.466203685f * 2.0f, 0.43236573f * 2.0f), mass);
+    
+    AddBody(glm::vec2(0.97000436f * scale, -0.24308753f * scale), 
+            glm::vec2(0.466203685f * 2.0f, 0.43236573f * 2.0f), mass);
+    
+    AddBody(glm::vec2(0.0f, 0.0f), 
+            glm::vec2(-2.0f * 0.466203685f * 2.0f, -2.0f * 0.43236573f * 2.0f), mass);
+    
+    // Add some observer particles - much larger distances
+    AddBody(glm::vec2(60.0f, 0.0f), glm::vec2(0.0f, 1.0f), 1.0f);
+    AddBody(glm::vec2(-60.0f, 0.0f), glm::vec2(0.0f, -1.0f), 1.0f);
+}
+
+void Application::CreateCollisionCourse() {
+    // Two clusters on collision course
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> offsetDist(-1.0f, 1.0f);
+    std::uniform_real_distribution<float> massDist(1.0f, 4.0f);  // Smaller masses
+    
+    // Left cluster - much larger separation
+    glm::vec2 leftCenter(-80.0f, 0.0f);
+    glm::vec2 leftVelocity(2.0f, 0.2f);
+    
+    for (int i = 0; i < 12; ++i) {
+        glm::vec2 offset(offsetDist(gen) * 15.0f, offsetDist(gen) * 15.0f);  // Larger spread
+        glm::vec2 position = leftCenter + offset;
+        glm::vec2 velocity = leftVelocity + glm::vec2(offsetDist(gen) * 0.3f, offsetDist(gen) * 0.3f);
+        
+        AddBody(position, velocity, massDist(gen));
+    }
+    
+    // Right cluster
+    glm::vec2 rightCenter(80.0f, 0.0f);
+    glm::vec2 rightVelocity(-1.8f, -0.15f);
+    
+    for (int i = 0; i < 12; ++i) {
+        glm::vec2 offset(offsetDist(gen) * 15.0f, offsetDist(gen) * 15.0f);  // Larger spread
+        glm::vec2 position = rightCenter + offset;
+        glm::vec2 velocity = rightVelocity + glm::vec2(offsetDist(gen) * 0.3f, offsetDist(gen) * 0.3f);
+        
+        AddBody(position, velocity, massDist(gen));
+    }
+    
+    // Add observer particles at safe distances
+    AddBody(glm::vec2(0.0f, 120.0f), glm::vec2(0.0f, 0.0f), 1.0f);
+    AddBody(glm::vec2(0.0f, -120.0f), glm::vec2(0.0f, 0.0f), 1.0f);
 }
 
 void Application::SpawnBodies(int count, int pattern) {

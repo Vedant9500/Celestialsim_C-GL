@@ -20,4 +20,6 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo Build successful!
 echo Executable: build\Release\NBodySimulation.exe
+cd ..
 pause
+

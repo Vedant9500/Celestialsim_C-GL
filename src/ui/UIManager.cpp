@@ -144,11 +144,20 @@ void UIManager::RenderMainMenuBar() {
             if (ImGui::MenuItem("Binary System")) {
                 if (OnLoadPreset) OnLoadPreset("Binary System");
             }
+            if (ImGui::MenuItem("Triple Star")) {
+                if (OnLoadPreset) OnLoadPreset("Triple Star");
+            }
+            if (ImGui::MenuItem("Figure Eight")) {
+                if (OnLoadPreset) OnLoadPreset("Figure Eight");
+            }
             if (ImGui::MenuItem("Galaxy")) {
                 if (OnLoadPreset) OnLoadPreset("Galaxy");
             }
             if (ImGui::MenuItem("Random Cluster")) {
                 if (OnLoadPreset) OnLoadPreset("Random Cluster");
+            }
+            if (ImGui::MenuItem("Collision Course")) {
+                if (OnLoadPreset) OnLoadPreset("Collision Course");
             }
             ImGui::EndMenu();
         }
@@ -254,11 +263,20 @@ void UIManager::RenderControlPanel() {
         if (ImGui::Button("Binary System", ImVec2(-1, 0))) {
             if (OnLoadPreset) OnLoadPreset("Binary System");
         }
+        if (ImGui::Button("Triple Star", ImVec2(-1, 0))) {
+            if (OnLoadPreset) OnLoadPreset("Triple Star");
+        }
+        if (ImGui::Button("Figure Eight", ImVec2(-1, 0))) {
+            if (OnLoadPreset) OnLoadPreset("Figure Eight");
+        }
         if (ImGui::Button("Galaxy", ImVec2(-1, 0))) {
             if (OnLoadPreset) OnLoadPreset("Galaxy");
         }
         if (ImGui::Button("Random Cluster", ImVec2(-1, 0))) {
             if (OnLoadPreset) OnLoadPreset("Random Cluster");
+        }
+        if (ImGui::Button("Collision Course", ImVec2(-1, 0))) {
+            if (OnLoadPreset) OnLoadPreset("Collision Course");
         }
     }
     

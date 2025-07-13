@@ -48,6 +48,11 @@ void Body::SetFixed(bool fixed) {
     m_fixed = fixed;
 }
 
+void Body::SetDensity(float density) {
+    m_density = std::max(0.001f, density); // Ensure density is never zero or negative
+    UpdateRadius();
+}
+
 void Body::ApplyForce(const glm::vec2& force) {
     m_force += force;
 }

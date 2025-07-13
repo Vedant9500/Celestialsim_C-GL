@@ -88,6 +88,8 @@ private:
     
     // Body management
     void AddBody(const glm::vec2& position, const glm::vec2& velocity, float mass);
+    void AddBody(const glm::vec2& position, const glm::vec2& velocity, float mass, 
+                 float density, const glm::vec3& color);
     void RemoveBody(Body* body);
     void ClearBodies();
     Body* FindBodyAtPosition(const glm::vec2& position);
@@ -102,6 +104,9 @@ private:
     void CreateBinarySystem();
     void CreateGalaxySpiral();
     void CreateRandomCluster(int count);
+    void CreateTripleStarSystem();
+    void CreateFigureEight();
+    void CreateCollisionCourse();
     void SpawnBodies(int count, int pattern);
     
     // Performance monitoring

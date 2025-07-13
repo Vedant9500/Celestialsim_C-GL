@@ -38,6 +38,7 @@ public:
     void SetSelected(bool selected);
     void SetBeingDragged(bool dragged);
     void SetFixed(bool fixed);
+    void SetDensity(float density);
     
     // Physics
     void ApplyForce(const glm::vec2& force);
@@ -81,9 +82,9 @@ private:
     bool m_fixed = false;
     
     // Constants
-    static constexpr float DEFAULT_DENSITY = 1.0f;
-    static constexpr float MIN_RADIUS = 0.5f;
-    static constexpr float MAX_RADIUS = 50.0f;
+    static constexpr float DEFAULT_DENSITY = 0.1f;  // Lower density = larger bodies for same mass
+    static constexpr float MIN_RADIUS = 2.0f;       // Much larger minimum radius
+    static constexpr float MAX_RADIUS = 100.0f;     // Larger maximum radius
     
     void UpdateTrail();
     void LimitTrailLength();
