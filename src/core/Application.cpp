@@ -849,71 +849,16 @@ void Application::SpawnBodies(int count, int pattern) {
     std::random_device rd;
     std::mt19937 gen(rd());
     
-    // Calculate dynamic radius based on body count and pattern
     float baseRadius = m_ui->GetSpawnRadius();
-    float dynamicRadius = CalculateDynamicSpawnRadius(count, pattern, baseRadius);
-    
     float mass = m_ui->GetSpawnMass();
     float speed = m_ui->GetSpawnSpeed();
     
-    for (int i = 0; i < count; ++i) {
-        glm::vec2 position;
-        glm::vec2 velocity;
-        
-        switch (pattern) {
-            case 0: { // Random
-                std::uniform_real_distribution<float> posDist(-dynamicRadius, dynamicRadius);
-                position = glm::vec2(posDist(gen), posDist(gen));
-                
-                if (speed > 0) {
-                    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
-                    std::uniform_real_distribution<float> speedDist(0.0f, speed);
-                    float angle = angleDist(gen);
-                    float vel = speedDist(gen);
-                    velocity = glm::vec2(vel * std::cos(angle), vel * std::sin(angle));
-                }
-                break;
-            }
-            case 1: { // Circle
-                float angle = 2.0f * 3.14159f * i / count;
-                position = glm::vec2(dynamicRadius * std::cos(angle), dynamicRadius * std::sin(angle));
-                
-                if (speed > 0) {
-                    // Orbital velocity
-                    velocity = glm::vec2(-speed * std::sin(angle), speed * std::cos(angle));
-                }
-                break;
-            }
-            case 2: { // Grid
-                auto gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
-                int row = i / gridSize;
-                int col = i % gridSize;
-                float spacing = 2.0f * dynamicRadius / gridSize;
-                
-                position = glm::vec2(
-                    -dynamicRadius + col * spacing + spacing * 0.5f,
-                    -dynamicRadius + row * spacing + spacing * 0.5f
-                );
-                
-                if (speed > 0) {
-                    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
-                    float angle = angleDist(gen);
-                    velocity = glm::vec2(speed * std::cos(angle), speed * std::sin(angle));
-                }
-                break;
-            }
-            case 3: { // Spiral
-                float angle = 2.0f * 3.14159f * i / count * 3.0f; // 3 turns
-                float r = dynamicRadius * i / count;
-                position = glm::vec2(r * std::cos(angle), r * std::sin(angle));
-                
-                if (speed > 0) {
-                    velocity = glm::vec2(-speed * std::sin(angle), speed * std::cos(angle));
-                }
-                break;
-            }
-        }
-        
+    // Use advanced spatial distribution algorithms from REF
+    auto positions = GenerateSpatialDistribution(count, pattern, baseRadius, gen);
+    
+    for (int i = 0; i < count && i < positions.size(); ++i) {
+        glm::vec2 position = positions[i];
+        glm::vec2 velocity = CalculateVelocityForPattern(position, pattern, speed, i, count, gen);
         AddBody(position, velocity, mass);
     }
 }
@@ -1039,6 +984,335 @@ float Application::CalculateDynamicSpawnRadius(int count, int pattern, float bas
     scaleFactor *= 1.1f;
     
     return baseRadius * scaleFactor;
+}
+
+std::vector<glm::vec2> Application::GenerateSpatialDistribution(int count, int pattern, float baseRadius, std::mt19937& gen) {
+    std::vector<glm::vec2> positions;
+    positions.reserve(count);
+    
+    // Constants for proper spacing
+    static constexpr float MIN_SEPARATION = 2.0f;
+    static constexpr float PERTURBATION_SCALE = 0.1f;
+    
+    switch (pattern) {
+        case 0: { // Random with uniform distribution and collision avoidance
+            // Use rejection sampling for proper uniform distribution in circle
+            std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
+            std::uniform_real_distribution<float> perturbDist(-PERTURBATION_SCALE, PERTURBATION_SCALE);
+            
+            // Calculate required radius for proper spacing
+            float area = count * MIN_SEPARATION * MIN_SEPARATION * 3.14159f; // Area per particle
+            float requiredRadius = std::sqrt(area / 3.14159f);
+            float actualRadius = std::max(baseRadius, requiredRadius);
+            
+            int maxAttempts = count * 100; // Limit attempts to avoid infinite loops
+            int attempts = 0;
+            
+            while (positions.size() < count && attempts < maxAttempts) {
+                glm::vec2 candidate;
+                float radiusSquared;
+                
+                // Generate point in unit circle using rejection sampling
+                do {
+                    candidate.x = dist(gen);
+                    candidate.y = dist(gen);
+                    radiusSquared = candidate.x * candidate.x + candidate.y * candidate.y;
+                } while (radiusSquared > 1.0f);
+                
+                // Scale to actual radius and add perturbation
+                candidate *= actualRadius;
+                candidate += glm::vec2(perturbDist(gen) * actualRadius, perturbDist(gen) * actualRadius);
+                
+                // Check minimum distance from existing positions
+                bool validPosition = true;
+                for (const auto& existing : positions) {
+                    if (glm::length(candidate - existing) < MIN_SEPARATION) {
+                        validPosition = false;
+                        break;
+                    }
+                }
+                
+                if (validPosition) {
+                    positions.push_back(candidate);
+                }
+                attempts++;
+            }
+            break;
+        }
+        
+        case 1: { // Circle with proper spacing
+            float circumference = 2.0f * 3.14159f * baseRadius;
+            float naturalSpacing = circumference / count;
+            
+            // If natural spacing is too small, increase radius
+            if (naturalSpacing < MIN_SEPARATION) {
+                baseRadius = (count * MIN_SEPARATION) / (2.0f * 3.14159f);
+            }
+            
+            std::uniform_real_distribution<float> perturbDist(-PERTURBATION_SCALE * baseRadius, 
+                                                            PERTURBATION_SCALE * baseRadius);
+            
+            for (int i = 0; i < count; ++i) {
+                float angle = 2.0f * 3.14159f * i / count;
+                glm::vec2 position = glm::vec2(baseRadius * std::cos(angle), baseRadius * std::sin(angle));
+                
+                // Add small perturbation to prevent perfect regularity
+                position += glm::vec2(perturbDist(gen), perturbDist(gen));
+                positions.push_back(position);
+            }
+            break;
+        }
+        
+        case 2: { // Grid with proper spacing
+            int gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
+            float naturalSpacing = (2.0f * baseRadius) / gridSize;
+            
+            // Ensure minimum spacing
+            if (naturalSpacing < MIN_SEPARATION) {
+                float requiredDimension = gridSize * MIN_SEPARATION;
+                baseRadius = requiredDimension / 2.0f;
+                naturalSpacing = MIN_SEPARATION;
+            }
+            
+            std::uniform_real_distribution<float> perturbDist(-PERTURBATION_SCALE * naturalSpacing,
+                                                            PERTURBATION_SCALE * naturalSpacing);
+            
+            for (int i = 0; i < count; ++i) {
+                int row = i / gridSize;
+                int col = i % gridSize;
+                
+                glm::vec2 position = glm::vec2(
+                    -baseRadius + col * naturalSpacing + naturalSpacing * 0.5f,
+                    -baseRadius + row * naturalSpacing + naturalSpacing * 0.5f
+                );
+                
+                // Add perturbation for more natural look
+                position += glm::vec2(perturbDist(gen), perturbDist(gen));
+                positions.push_back(position);
+            }
+            break;
+        }
+        
+        case 3: { // Spiral with proper spacing along curve
+            float spiralTurns = 3.0f;
+            float totalAngle = spiralTurns * 2.0f * 3.14159f;
+            
+            // Calculate spiral length approximately
+            float avgRadius = baseRadius / 2.0f;
+            float approxLength = totalAngle * avgRadius;
+            float naturalSpacing = approxLength / count;
+            
+            // Adjust radius if spacing is too tight
+            if (naturalSpacing < MIN_SEPARATION) {
+                float scale = MIN_SEPARATION / naturalSpacing;
+                baseRadius *= scale;
+            }
+            
+            std::uniform_real_distribution<float> perturbDist(-PERTURBATION_SCALE * MIN_SEPARATION,
+                                                            PERTURBATION_SCALE * MIN_SEPARATION);
+            
+            for (int i = 0; i < count; ++i) {
+                float t = static_cast<float>(i) / count;
+                float angle = totalAngle * t;
+                float r = baseRadius * t;
+                
+                glm::vec2 position = glm::vec2(r * std::cos(angle), r * std::sin(angle));
+                
+                // Add perturbation
+                position += glm::vec2(perturbDist(gen), perturbDist(gen));
+                positions.push_back(position);
+            }
+            break;
+        }
+        
+        case 4: { // Poisson disk sampling (advanced non-overlapping distribution)
+            positions = GeneratePoissonDiskSampling(count, baseRadius, MIN_SEPARATION, gen);
+            break;
+        }
+        
+        default: {
+            // Fallback to simple uniform circle
+            std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
+            std::uniform_real_distribution<float> radiusDist(0.0f, baseRadius);
+            
+            for (int i = 0; i < count; ++i) {
+                float angle = angleDist(gen);
+                float r = std::sqrt(radiusDist(gen)) * baseRadius; // sqrt for uniform area distribution
+                positions.emplace_back(r * std::cos(angle), r * std::sin(angle));
+            }
+            break;
+        }
+    }
+    
+    return positions;
+}
+
+std::vector<glm::vec2> Application::GeneratePoissonDiskSampling(int targetCount, float radius, float minDistance, std::mt19937& gen) {
+    // Bridson's Poisson disk sampling algorithm - guarantees no overlapping within minDistance
+    std::vector<glm::vec2> points;
+    std::vector<glm::vec2> activeList;
+    
+    // Grid for fast spatial lookup
+    float cellSize = minDistance / std::sqrt(2.0f);
+    int gridWidth = static_cast<int>(std::ceil(2.0f * radius / cellSize));
+    int gridHeight = gridWidth;
+    std::vector<std::vector<int>> grid(gridWidth, std::vector<int>(gridHeight, -1));
+    
+    auto getGridCoord = [&](const glm::vec2& p) -> glm::ivec2 {
+        return glm::ivec2(
+            static_cast<int>((p.x + radius) / cellSize),
+            static_cast<int>((p.y + radius) / cellSize)
+        );
+    };
+    
+    auto isValidGrid = [&](const glm::ivec2& coord) -> bool {
+        return coord.x >= 0 && coord.x < gridWidth && coord.y >= 0 && coord.y < gridHeight;
+    };
+    
+    // Start with random point
+    std::uniform_real_distribution<float> dist(-radius, radius);
+    glm::vec2 firstPoint;
+    do {
+        firstPoint = glm::vec2(dist(gen), dist(gen));
+    } while (glm::length(firstPoint) > radius);
+    
+    points.push_back(firstPoint);
+    activeList.push_back(firstPoint);
+    
+    auto gridCoord = getGridCoord(firstPoint);
+    if (isValidGrid(gridCoord)) {
+        grid[gridCoord.x][gridCoord.y] = 0;
+    }
+    
+    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
+    std::uniform_real_distribution<float> radiusDistPoisson(minDistance, 2.0f * minDistance);
+    std::uniform_int_distribution<int> activeDist;
+    
+    int maxAttempts = 30; // Attempts per active point
+    
+    while (!activeList.empty() && points.size() < targetCount) {
+        // Choose random active point
+        activeDist = std::uniform_int_distribution<int>(0, activeList.size() - 1);
+        int activeIndex = activeDist(gen);
+        glm::vec2 activePoint = activeList[activeIndex];
+        
+        bool foundNewPoint = false;
+        
+        for (int attempt = 0; attempt < maxAttempts; ++attempt) {
+            // Generate candidate around active point
+            float angle = angleDist(gen);
+            float r = radiusDistPoisson(gen);
+            glm::vec2 candidate = activePoint + glm::vec2(r * std::cos(angle), r * std::sin(angle));
+            
+            // Check if candidate is within bounds
+            if (glm::length(candidate) > radius) continue;
+            
+            // Check distance to existing points using grid
+            auto candidateGrid = getGridCoord(candidate);
+            if (!isValidGrid(candidateGrid)) continue;
+            
+            bool tooClose = false;
+            
+            // Check surrounding grid cells
+            for (int dx = -2; dx <= 2 && !tooClose; ++dx) {
+                for (int dy = -2; dy <= 2 && !tooClose; ++dy) {
+                    glm::ivec2 neighborGrid = candidateGrid + glm::ivec2(dx, dy);
+                    if (!isValidGrid(neighborGrid)) continue;
+                    
+                    int pointIndex = grid[neighborGrid.x][neighborGrid.y];
+                    if (pointIndex >= 0) {
+                        float dist = glm::length(candidate - points[pointIndex]);
+                        if (dist < minDistance) {
+                            tooClose = true;
+                        }
+                    }
+                }
+            }
+            
+            if (!tooClose) {
+                // Valid point found
+                points.push_back(candidate);
+                activeList.push_back(candidate);
+                grid[candidateGrid.x][candidateGrid.y] = points.size() - 1;
+                foundNewPoint = true;
+                break;
+            }
+        }
+        
+        if (!foundNewPoint) {
+            // Remove active point if no new points found
+            activeList.erase(activeList.begin() + activeIndex);
+        }
+    }
+    
+    return points;
+}
+
+glm::vec2 Application::CalculateVelocityForPattern(const glm::vec2& position, int pattern, float speed, int index, int totalCount, std::mt19937& gen) {
+    if (speed <= 0.0f) {
+        return glm::vec2(0.0f);
+    }
+    
+    std::uniform_real_distribution<float> angleDist(0.0f, 2.0f * 3.14159f);
+    std::uniform_real_distribution<float> speedVariation(0.7f, 1.3f);
+    
+    glm::vec2 velocity(0.0f);
+    
+    switch (pattern) {
+        case 0: { // Random velocities
+            float angle = angleDist(gen);
+            float vel = speed * speedVariation(gen);
+            velocity = glm::vec2(vel * std::cos(angle), vel * std::sin(angle));
+            break;
+        }
+        
+        case 1: { // Circular orbital motion
+            float distance = glm::length(position);
+            if (distance > 0.001f) {
+                glm::vec2 normalized = position / distance;
+                velocity = glm::vec2(-normalized.y, normalized.x) * speed;
+            }
+            break;
+        }
+        
+        case 2: { // Grid - random individual velocities
+            float angle = angleDist(gen);
+            velocity = glm::vec2(speed * std::cos(angle), speed * std::sin(angle));
+            break;
+        }
+        
+        case 3: { // Spiral - tangential velocity
+            float distance = glm::length(position);
+            if (distance > 0.001f) {
+                glm::vec2 normalized = position / distance;
+                velocity = glm::vec2(-normalized.y, normalized.x) * speed;
+                
+                // Add slight radial component for spiral expansion
+                velocity += normalized * (speed * 0.1f);
+            }
+            break;
+        }
+        
+        case 4: { // Poisson disk - converging/diverging motion
+            float distance = glm::length(position);
+            if (distance > 0.001f) {
+                glm::vec2 normalized = position / distance;
+                // Mix of radial and tangential motion
+                glm::vec2 radial = normalized * speed * 0.3f;
+                glm::vec2 tangential = glm::vec2(-normalized.y, normalized.x) * speed * 0.7f;
+                velocity = radial + tangential;
+            }
+            break;
+        }
+        
+        default: {
+            float angle = angleDist(gen);
+            velocity = glm::vec2(speed * std::cos(angle), speed * std::sin(angle));
+            break;
+        }
+    }
+    
+    return velocity;
 }
 
 } // namespace nbody

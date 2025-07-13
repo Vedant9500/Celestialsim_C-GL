@@ -3,6 +3,7 @@
 #include <vector>
 #include <memory>
 #include <chrono>
+#include <random>
 #include <glm/glm.hpp>
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -111,6 +112,11 @@ private:
     
     // Helper methods
     float CalculateDynamicSpawnRadius(int count, int pattern, float baseRadius);
+    
+    // Advanced spatial distribution methods
+    std::vector<glm::vec2> GenerateSpatialDistribution(int count, int pattern, float baseRadius, std::mt19937& gen);
+    std::vector<glm::vec2> GeneratePoissonDiskSampling(int targetCount, float radius, float minDistance, std::mt19937& gen);
+    glm::vec2 CalculateVelocityForPattern(const glm::vec2& position, int pattern, float speed, int index, int totalCount, std::mt19937& gen);
     
     // Performance monitoring
     void UpdatePerformanceMetrics();
