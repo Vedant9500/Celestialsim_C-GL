@@ -3,6 +3,8 @@
 #include "physics/PhysicsEngine.h"
 #include "rendering/Renderer.h"
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
 
 namespace nbody {
 
@@ -310,8 +312,19 @@ void UIManager::RenderControlPanel() {
         ImGui::InputInt("Number of Bodies", &m_spawnCount, 10, 100);
         m_spawnCount = std::max(1, std::min(m_spawnCount, 100000)); // Limit to reasonable range
         
-        ImGui::SliderFloat("Spawn Radius", &m_spawnRadius, 5.0f, 50.0f, "%.1f");
-        ImGui::SameLine(); ShowHelpMarker("Radius of the area where bodies will spawn");
+        ImGui::SliderFloat("Base Spawn Radius", &m_spawnRadius, 5.0f, 50.0f, "%.1f");
+        ImGui::SameLine(); ShowHelpMarker("Base radius - will be scaled automatically for large body counts");
+        
+        // Show calculated dynamic radius for large counts
+        if (m_spawnCount > 100) {
+            float dynamicRadius = CalculatePreviewRadius(m_spawnCount, m_spawnPattern, m_spawnRadius);
+            ImGui::Text("Effective Radius: %.1f (auto-scaled)", dynamicRadius);
+            
+            // Create formatted help text
+            char helpText[128];
+            snprintf(helpText, sizeof(helpText), "Radius automatically increased to properly space %d bodies", m_spawnCount);
+            ImGui::SameLine(); ShowHelpMarker(helpText);
+        }
         
         ImGui::SliderFloat("Spawn Mass", &m_spawnMass, 0.1f, 10.0f, "%.2f");
         ImGui::SliderFloat("Initial Speed", &m_spawnSpeed, 0.0f, 20.0f, "%.1f");
@@ -544,6 +557,53 @@ bool UIManager::IsMouseOverUI() const {
 void UIManager::OnWindowResize(int width, int height) {
     m_windowWidth = width;
     m_windowHeight = height;
+}
+
+float UIManager::CalculatePreviewRadius(int count, int pattern, float baseRadius) {
+    // Constants for spacing calculation (same as in Application)
+    static constexpr float MIN_BODY_SPACING = 2.0f;
+    static constexpr float MAX_RADIUS_MULTIPLIER = 50.0f;
+    
+    // For small counts, use the base radius
+    if (count <= 100) {
+        return baseRadius;
+    }
+    
+    float scaleFactor = 1.0f;
+    
+    switch (pattern) {
+        case 0: { // Random
+            float neededArea = count * MIN_BODY_SPACING * MIN_BODY_SPACING;
+            float neededRadius = std::sqrt(neededArea / 3.14159f);
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+        case 1: { // Circle
+            float neededRadius = (count * MIN_BODY_SPACING) / (2.0f * 3.14159f);
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+        case 2: { // Grid
+            auto gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
+            float neededRadius = (gridSize * MIN_BODY_SPACING) / 2.0f;
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+        case 3: { // Spiral
+            float neededRadius = (count * MIN_BODY_SPACING) / (2.0f * 3.14159f * 3.0f);
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+    }
+    
+    // Apply reasonable limits
+    scaleFactor = std::max(1.0f, scaleFactor);
+    scaleFactor = std::min(MAX_RADIUS_MULTIPLIER, scaleFactor);
+    
+    // Apply buffer
+    scaleFactor *= 1.1f;
+    
+    return baseRadius * scaleFactor;
 }
 
 } // namespace nbody

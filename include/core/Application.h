@@ -109,6 +109,9 @@ private:
     void CreateCollisionCourse();
     void SpawnBodies(int count, int pattern);
     
+    // Helper methods
+    float CalculateDynamicSpawnRadius(int count, int pattern, float baseRadius);
+    
     // Performance monitoring
     void UpdatePerformanceMetrics();
     

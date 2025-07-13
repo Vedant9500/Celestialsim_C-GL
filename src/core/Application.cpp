@@ -9,6 +9,7 @@
 #include <iostream>
 #include <algorithm>
 #include <random>
+#include <cmath>
 
 namespace nbody {
 
@@ -473,9 +474,8 @@ void Application::ClearBodies() {
 Body* Application::FindBodyAtPosition(const glm::vec2& position) {
     for (auto& body : m_bodies) {
         float distance = glm::length(body->GetPosition() - position);
-        if (distance <= body->GetRadius() * 2.0f) { // Allow some tolerance
+        if (distance <= body->GetRadius() * 2.0f) // Allow some tolerance
             return body.get();
-        }
     }
     return nullptr;
 }
@@ -849,7 +849,10 @@ void Application::SpawnBodies(int count, int pattern) {
     std::random_device rd;
     std::mt19937 gen(rd());
     
-    float radius = m_ui->GetSpawnRadius();
+    // Calculate dynamic radius based on body count and pattern
+    float baseRadius = m_ui->GetSpawnRadius();
+    float dynamicRadius = CalculateDynamicSpawnRadius(count, pattern, baseRadius);
+    
     float mass = m_ui->GetSpawnMass();
     float speed = m_ui->GetSpawnSpeed();
     
@@ -859,7 +862,7 @@ void Application::SpawnBodies(int count, int pattern) {
         
         switch (pattern) {
             case 0: { // Random
-                std::uniform_real_distribution<float> posDist(-radius, radius);
+                std::uniform_real_distribution<float> posDist(-dynamicRadius, dynamicRadius);
                 position = glm::vec2(posDist(gen), posDist(gen));
                 
                 if (speed > 0) {
@@ -873,7 +876,7 @@ void Application::SpawnBodies(int count, int pattern) {
             }
             case 1: { // Circle
                 float angle = 2.0f * 3.14159f * i / count;
-                position = glm::vec2(radius * std::cos(angle), radius * std::sin(angle));
+                position = glm::vec2(dynamicRadius * std::cos(angle), dynamicRadius * std::sin(angle));
                 
                 if (speed > 0) {
                     // Orbital velocity
@@ -885,11 +888,11 @@ void Application::SpawnBodies(int count, int pattern) {
                 auto gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
                 int row = i / gridSize;
                 int col = i % gridSize;
-                float spacing = 2.0f * radius / gridSize;
+                float spacing = 2.0f * dynamicRadius / gridSize;
                 
                 position = glm::vec2(
-                    -radius + col * spacing + spacing * 0.5f,
-                    -radius + row * spacing + spacing * 0.5f
+                    -dynamicRadius + col * spacing + spacing * 0.5f,
+                    -dynamicRadius + row * spacing + spacing * 0.5f
                 );
                 
                 if (speed > 0) {
@@ -901,7 +904,7 @@ void Application::SpawnBodies(int count, int pattern) {
             }
             case 3: { // Spiral
                 float angle = 2.0f * 3.14159f * i / count * 3.0f; // 3 turns
-                float r = radius * i / count;
+                float r = dynamicRadius * i / count;
                 position = glm::vec2(r * std::cos(angle), r * std::sin(angle));
                 
                 if (speed > 0) {
@@ -980,6 +983,62 @@ void Application::WindowSizeCallback(GLFWwindow* /*window*/, int width, int heig
 
 void Application::ErrorCallback(int error, const char* description) {
     std::cerr << "GLFW Error " << error << ": " << description << std::endl;
+}
+
+float Application::CalculateDynamicSpawnRadius(int count, int pattern, float baseRadius) {
+    // Constants for spacing calculation
+    static constexpr float MIN_BODY_SPACING = 2.0f;  // Minimum distance between bodies
+    static constexpr float MAX_RADIUS_MULTIPLIER = 50.0f; // Cap the maximum scaling
+    
+    // For small counts, use the base radius
+    if (count <= 100) {
+        return baseRadius;
+    }
+    
+    float scaleFactor = 1.0f;
+    
+    switch (pattern) {
+        case 0: { // Random
+            // For random placement, we need enough area to spread bodies
+            // Area needed = count * (spacing^2), radius = sqrt(area / π)
+            float neededArea = count * MIN_BODY_SPACING * MIN_BODY_SPACING;
+            float neededRadius = std::sqrt(neededArea / 3.14159f);
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+        case 1: { // Circle
+            // For circle, circumference = 2πr, spacing = circumference / count
+            // We want spacing >= MIN_BODY_SPACING, so r >= count * spacing / (2π)
+            float neededRadius = (count * MIN_BODY_SPACING) / (2.0f * 3.14159f);
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+        case 2: { // Grid
+            // For grid, we need gridSize x gridSize >= count
+            // Total area = (2 * radius)^2, spacing = (2 * radius) / gridSize
+            // We want spacing >= MIN_BODY_SPACING
+            auto gridSize = static_cast<int>(std::ceil(std::sqrt(count)));
+            float neededRadius = (gridSize * MIN_BODY_SPACING) / 2.0f;
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+        case 3: { // Spiral
+            // For spiral, bodies are distributed along a spiral path
+            // Use similar logic to circle but with some extra space for spiral arms
+            float neededRadius = (count * MIN_BODY_SPACING) / (2.0f * 3.14159f * 3.0f); // 3 turns
+            scaleFactor = neededRadius / baseRadius;
+            break;
+        }
+    }
+    
+    // Apply reasonable limits
+    scaleFactor = std::max(1.0f, scaleFactor); // Never smaller than base
+    scaleFactor = std::min(MAX_RADIUS_MULTIPLIER, scaleFactor); // Cap maximum growth
+    
+    // Apply a small extra buffer for safety (10% extra space)
+    scaleFactor *= 1.1f;
+    
+    return baseRadius * scaleFactor;
 }
 
 } // namespace nbody

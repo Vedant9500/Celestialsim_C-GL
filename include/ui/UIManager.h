@@ -207,6 +207,9 @@ private:
     void ShowHelpMarker(const char* desc);
     void ShowTooltip(const char* text);
     
+    // Spawn preview calculation
+    float CalculatePreviewRadius(int count, int pattern, float baseRadius);
+    
     // Color utilities
     ImU32 Vec3ToImU32(const glm::vec3& color);
     glm::vec3 ImU32ToVec3(ImU32 color);
