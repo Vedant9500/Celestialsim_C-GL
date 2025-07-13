@@ -118,6 +118,7 @@ public:
     std::function<void(int, int)> OnSpawnBodies;  // (count, pattern)
     std::function<void(const glm::vec2&)> OnSetCameraPosition;
     std::function<void(float)> OnSetCameraZoom;
+    std::function<void()> OnRunBenchmark;  // REF-inspired performance benchmarking
     
 private:
     // Window state

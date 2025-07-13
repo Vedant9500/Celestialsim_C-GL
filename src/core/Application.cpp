@@ -168,6 +168,13 @@ bool Application::Initialize() {
     
     m_ui->OnDeleteBody = [this](Body* body) { RemoveBody(body); };
     
+    // REF-inspired performance benchmarking
+    m_ui->OnRunBenchmark = [this]() {
+        if (m_physics) {
+            m_physics->BenchmarkMethods(m_bodies);
+        }
+    };
+    
     // Camera callbacks (we'll need to add these to UIManager)
     // m_ui->OnResetCamera = [this]() { m_renderer->GetCamera().position = glm::vec2(0.0f); m_renderer->GetCamera().targetZoom = 1.0f; };
     // m_ui->OnFitAllBodies = [this]() { m_renderer->FitAllBodies(m_bodies); };

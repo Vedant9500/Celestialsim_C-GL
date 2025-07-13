@@ -13,10 +13,10 @@ static constexpr float MAX_FORCE = 1000.0f;  // Cap force for stability
 // CPUSequentialSolver Implementation
 // ============================================================================
 
-CPUSequentialSolver::CPUSequentialSolver(float timeStep, float squaredSoftening)
-    : m_squaredSoftening(squaredSoftening) 
+CPUSequentialSolver::CPUSequentialSolver(float timeStep, float squaredSoftening) 
 {
     m_timeStep = timeStep;
+    m_squaredSoftening = squaredSoftening;
 }
 
 void CPUSequentialSolver::UpdateParticlePositions(ParticleSystem* particles) {
@@ -89,9 +89,9 @@ void CPUSequentialSolver::ComputeGravityForce(ParticleSystem* particles, size_t 
 // ============================================================================
 
 CPUParallelSolver::CPUParallelSolver(float timeStep, float squaredSoftening)
-    : m_squaredSoftening(squaredSoftening)
 {
     m_timeStep = timeStep;
+    m_squaredSoftening = squaredSoftening;
 }
 
 void CPUParallelSolver::UpdateParticlePositions(ParticleSystem* particles) {

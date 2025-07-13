@@ -57,6 +57,10 @@ void Body::ApplyForce(const glm::vec2& force) {
     m_force += force;
 }
 
+void Body::SetForce(const glm::vec2& force) {
+    m_force = force;
+}
+
 void Body::ClearForce() {
     m_force = glm::vec2(0.0f);
 }

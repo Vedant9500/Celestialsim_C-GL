@@ -40,13 +40,13 @@ struct EnergyStats {
  * @brief Configuration for physics simulation
  */
 struct PhysicsConfig {
-    float gravitationalConstant = 10.0f;  // More reasonable default
-    float timeStep = 0.016f;
-    float timeScale = 1.0f;  // Speed multiplier
-    float softeningLength = 1.0f;  // Larger softening for stability
-    float dampingFactor = 0.999f;
+    float gravitationalConstant = 1.0f;   // REF standard: G = 1.0 for unit scaling
+    float timeStep = 0.016f;              // 60 FPS target
+    float timeScale = 1.0f;               // Speed multiplier
+    float softeningLength = 0.1f;         // REF-style small softening for accuracy
+    float dampingFactor = 1.0f;           // No damping by default (REF standard)
     bool useBarnesHut = true;
-    float barnesHutTheta = 0.5f;
+    float barnesHutTheta = 0.5f;          // REF standard theta value
     bool enableCollisions = true;
     float restitution = 0.8f;
     bool adaptiveTimeStep = false;
@@ -117,6 +117,9 @@ public:
     void Reset();
     bool IsGPUAvailable() const { return m_gpuAvailable; }
     
+    // Performance and debugging
+    void BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies);  // REF-inspired benchmarking
+    
 private:
     PhysicsConfig m_config;
     PhysicsStats m_stats;
@@ -173,6 +176,8 @@ private:
     
     // Force calculation methods
     void CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bodies);
+    void CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>& bodies);      // Block-based for cache efficiency
+    void CalculateForcesSpatiallyOptimized(std::vector<std::unique_ptr<Body>>& bodies); // Spatial sorting optimization
     void CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>& bodies);
     void CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodies);
     
@@ -191,7 +196,7 @@ private:
     // Utility
     void ConvertToArrays(const std::vector<std::unique_ptr<Body>>& bodies);
     void ConvertFromArrays(std::vector<std::unique_ptr<Body>>& bodies);
-    
+
     // Constants
     static constexpr float MIN_DISTANCE = 1e-6f;
     static constexpr float MAX_FORCE = 1e6f;

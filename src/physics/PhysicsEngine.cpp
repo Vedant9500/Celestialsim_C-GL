@@ -5,6 +5,9 @@
 #include <cmath>
 #include <algorithm>
 #include <execution>
+#include <numeric>
+#include <functional>
+#include <chrono>
 
 namespace nbody {
 
@@ -75,7 +78,16 @@ void PhysicsEngine::CalculateForces(std::vector<std::unique_ptr<Body>>& bodies) 
     } else if (m_config.useBarnesHut && bodies.size() > m_config.maxBodiesForDirect) {
         CalculateForcesBarnesHut(bodies);
         m_stats.method = "Barnes-Hut";
+    } else if (bodies.size() > 100) {
+        // Use spatially optimized method for medium-large simulations
+        CalculateForcesSpatiallyOptimized(bodies);
+        m_stats.method = "Spatial-Optimized";
+    } else if (bodies.size() > 50) {
+        // Use block-optimized method for medium simulations
+        CalculateForcesOptimized(bodies);
+        m_stats.method = "Block-Optimized";
     } else {
+        // Use direct method for small simulations
         CalculateForcesDirect(bodies);
         m_stats.method = "Direct";
     }
@@ -91,7 +103,7 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
     
     m_stats.forceCalculations = 0;
     
-    // Sequential calculation for now (avoid parallel issues)
+    // REF-style force calculation for better numerical stability
     for (size_t i = 0; i < bodies.size(); ++i) {
         auto& bodyA = bodies[i];
         if (bodyA->IsFixed()) continue;
@@ -103,35 +115,30 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
             
             auto& bodyB = bodies[j];
             
-            // Calculate direction vector from bodyA to bodyB (like reference)
-            glm::vec2 r = bodyB->GetPosition() - bodyA->GetPosition();
-            float distanceSq = glm::dot(r, r);
+            // Calculate direction vector from bodyA to bodyB (REF: vector_i_j)
+            glm::vec2 vector_i_j = bodyB->GetPosition() - bodyA->GetPosition();
             
-            // When collisions are disabled, use larger softening to prevent singularities
-            float effectiveSofteningSq = softeningSq;
-            if (!m_config.enableCollisions) {
-                // Use the sum of radii as minimum distance when collisions are off
-                float minDistance = bodyA->GetRadius() + bodyB->GetRadius();
-                effectiveSofteningSq = std::max(softeningSq, minDistance * minDistance);
-            }
+            // REF-style distance calculation: pow(dot(r,r) + softening², 1.5)
+            // This is more numerically stable than sqrt-based approaches
+            float distanceSquared = glm::dot(vector_i_j, vector_i_j);
+            float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
             
-            distanceSq += effectiveSofteningSq;
-            
-            if (distanceSq > MIN_DISTANCE * MIN_DISTANCE) {
-                // Calculate gravitational force exactly like reference:
-                // F = G * m1 * m2 / (r² + ε²)^1.5 * r_unit
-                float distance = std::pow(distanceSq, 1.5f);
-                float forceMagnitude = (G * bodyA->GetMass() * bodyB->GetMass()) / distance;
+            // Prevent division by zero (though pow(softening², 1.5) should handle this)
+            if (distance_i_j > 1e-10f) {
+                // REF formula: F = ((G * mass_j) / distance_i_j) * vector_i_j
+                // Note: Mass of bodyA will be cancelled out when converting F to acceleration
+                float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
                 
                 // Cap maximum force to prevent instability
-                forceMagnitude = std::min(forceMagnitude, MAX_FORCE);
+                forceMagnitude = std::min(forceMagnitude, MAX_FORCE / bodyB->GetMass());
                 
-                totalForce += forceMagnitude * r;
+                totalForce += forceMagnitude * vector_i_j;
                 
                 m_stats.forceCalculations++;
             }
         }
         
+        // Apply total force to body
         bodyA->ApplyForce(totalForce);
     }
 }
@@ -185,7 +192,7 @@ void PhysicsEngine::IntegrateEuler(std::vector<std::unique_ptr<Body>>& bodies, f
 }
 
 void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
-    // Leapfrog integration matching reference implementation
+    // REF-style leapfrog integration for better stability
     const float dtDividedBy2 = deltaTime * 0.5f;
     const float damping = m_config.dampingFactor;
     const float maxVelocity = 500.0f; // Maximum velocity to prevent instability
@@ -196,39 +203,28 @@ void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies
         // Get current state
         glm::vec2 position = body->GetPosition();
         glm::vec2 velocity = body->GetVelocity() * damping;
+        glm::vec2 force = body->GetForce();
         
         // Calculate acceleration from force: F = ma -> a = F/m
-        glm::vec2 force = body->GetForce();
-        glm::vec2 acceleration = force / body->GetMass();
+        // Note: In our force calculation, mass is already included, so force = acceleration
+        glm::vec2 acceleration = force; // REF comment: "M is cancelled when calculating gravity force"
         
-        // Limit acceleration to prevent instability
-        float accelMagnitude = glm::length(acceleration);
-        if (accelMagnitude > MAX_FORCE / body->GetMass()) {
-            acceleration = acceleration * (MAX_FORCE / body->GetMass()) / accelMagnitude;
-        }
-        
-        // Compute velocity (i + 1/2)
+        // Step 1: Compute velocity at half timestep (i + 1/2)
         velocity += acceleration * dtDividedBy2;
         
-        // Limit velocity to prevent runaway situations
-        float velocityMagnitude = glm::length(velocity);
-        if (velocityMagnitude > maxVelocity) {
-            velocity = velocity * maxVelocity / velocityMagnitude;
-        }
-        
-        // Compute next position (i+1)
+        // Step 2: Compute next position (i+1) using half-step velocity
         position += velocity * deltaTime;
         
-        // Update acceleration for next frame (same as current since force doesn't change mid-step)
-        body->SetAcceleration(acceleration);
+        // Step 3: Update acceleration at new position (will be done in next force calculation)
+        // This is where the next force calculation happens in the main loop
         
-        // Compute next velocity (i+1)
+        // Step 4: Complete velocity update for next timestep (i+1)
         velocity += acceleration * dtDividedBy2;
         
-        // Limit final velocity again
-        velocityMagnitude = glm::length(velocity);
-        if (velocityMagnitude > maxVelocity) {
-            velocity = velocity * maxVelocity / velocityMagnitude;
+        // Apply velocity limits for stability
+        float velMagnitude = glm::length(velocity);
+        if (velMagnitude > maxVelocity) {
+            velocity = glm::normalize(velocity) * maxVelocity;
         }
         
         // Update body state
@@ -373,6 +369,167 @@ void PhysicsEngine::StartTimer() {
 void PhysicsEngine::EndTimer(double& timeAccumulator) {
     auto end = std::chrono::high_resolution_clock::now();
     timeAccumulator = std::chrono::duration<double, std::milli>(end - m_frameStart).count();
+}
+
+void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>& bodies) {
+    // REF-inspired optimized force calculation with better memory access patterns
+    const float G = m_config.gravitationalConstant;
+    const float softeningSq = m_config.softeningLength * m_config.softeningLength;
+    const size_t bodyCount = bodies.size();
+    
+    // Block-based calculation to improve cache locality (inspired by REF GPU shared memory)
+    constexpr size_t BLOCK_SIZE = 64; // Match REF compute shader block size
+    
+    m_stats.forceCalculations = 0;
+    
+    // Clear all forces first
+    for (auto& body : bodies) {
+        body->ClearForce();
+    }
+    
+    // Block-based force calculation for better cache performance
+    for (size_t blockStart = 0; blockStart < bodyCount; blockStart += BLOCK_SIZE) {
+        size_t blockEnd = std::min(blockStart + BLOCK_SIZE, bodyCount);
+        
+        // Calculate forces for current block against all other bodies
+        for (size_t i = blockStart; i < blockEnd; ++i) {
+            auto& bodyA = bodies[i];
+            if (bodyA->IsFixed()) continue;
+            
+            glm::vec2 totalForce(0.0f);
+            glm::vec2 posA = bodyA->GetPosition();
+            
+            // Inner loop: calculate force from all other bodies
+            for (size_t j = 0; j < bodyCount; ++j) {
+                if (i == j) continue;
+                
+                auto& bodyB = bodies[j];
+                glm::vec2 posB = bodyB->GetPosition();
+                
+                // REF-style vector calculation
+                glm::vec2 vector_i_j = posB - posA;
+                float distanceSquared = glm::dot(vector_i_j, vector_i_j);
+                
+                // REF-style distance calculation with numerical stability
+                float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
+                
+                if (distance_i_j > 1e-10f) {
+                    // REF formula: accumulate force without mass of bodyA (cancelled in acceleration)
+                    float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
+                    totalForce += forceMagnitude * vector_i_j;
+                    m_stats.forceCalculations++;
+                }
+            }
+            
+            // Apply accumulated force
+            bodyA->ApplyForce(totalForce);
+        }
+    }
+}
+
+void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_ptr<Body>>& bodies) {
+    // REF-inspired spatial optimization using sorting for cache locality
+    const float G = m_config.gravitationalConstant;
+    const float softeningSq = m_config.softeningLength * m_config.softeningLength;
+    
+    // Create sorted indices based on spatial position (simplified Z-order curve)
+    std::vector<size_t> sortedIndices(bodies.size());
+    std::iota(sortedIndices.begin(), sortedIndices.end(), 0);
+    
+    // Sort by spatial hash (simplified version of REF's Morton codes)
+    std::sort(sortedIndices.begin(), sortedIndices.end(), [&bodies](size_t a, size_t b) {
+        auto posA = bodies[a]->GetPosition();
+        auto posB = bodies[b]->GetPosition();
+        
+        // Simple spatial hash: interleave x and y bits (simplified Morton code)
+        auto hash = [](float x, float y) -> uint32_t {
+            uint32_t ix = static_cast<uint32_t>((x + 1000.0f) * 100.0f); // Offset and scale
+            uint32_t iy = static_cast<uint32_t>((y + 1000.0f) * 100.0f);
+            
+            // Interleave bits (simplified Morton encoding)
+            uint32_t result = 0;
+            for (int i = 0; i < 16; i++) {
+                result |= ((ix & (1 << i)) << i) | ((iy & (1 << i)) << (i + 1));
+            }
+            return result;
+        };
+        
+        return hash(posA.x, posA.y) < hash(posB.x, posB.y);
+    });
+    
+    m_stats.forceCalculations = 0;
+    
+    // Clear all forces
+    for (auto& body : bodies) {
+        body->ClearForce();
+    }
+    
+    // Calculate forces using spatially sorted order for better cache locality
+    for (size_t idx_i = 0; idx_i < sortedIndices.size(); ++idx_i) {
+        size_t i = sortedIndices[idx_i];
+        auto& bodyA = bodies[i];
+        if (bodyA->IsFixed()) continue;
+        
+        glm::vec2 totalForce(0.0f);
+        glm::vec2 posA = bodyA->GetPosition();
+        
+        for (size_t idx_j = 0; idx_j < sortedIndices.size(); ++idx_j) {
+            if (idx_i == idx_j) continue;
+            
+            size_t j = sortedIndices[idx_j];
+            auto& bodyB = bodies[j];
+            glm::vec2 posB = bodyB->GetPosition();
+            
+            // REF-style calculation
+            glm::vec2 vector_i_j = posB - posA;
+            float distanceSquared = glm::dot(vector_i_j, vector_i_j);
+            float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
+            
+            if (distance_i_j > 1e-10f) {
+                float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
+                totalForce += forceMagnitude * vector_i_j;
+                m_stats.forceCalculations++;
+            }
+        }
+        
+        bodyA->ApplyForce(totalForce);
+    }
+}
+
+void PhysicsEngine::BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies) {
+    // REF-inspired performance benchmarking of different force calculation methods
+    if (bodies.size() < 10) return; // Skip for very small simulations
+    
+    const int numIterations = 5;
+    std::cout << "\n=== Physics Method Benchmark (Body Count: " << bodies.size() << ") ===" << std::endl;
+    
+    // Backup current forces
+    std::vector<glm::vec2> originalForces;
+    for (const auto& body : bodies) {
+        originalForces.push_back(body->GetForce());
+    }
+    
+    // Test Direct Method
+    auto testMethod = [&](const std::string& name, std::function<void()> method) {
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int i = 0; i < numIterations; ++i) {
+            method();
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        double avgTime = std::chrono::duration<double, std::milli>(end - start).count() / numIterations;
+        std::cout << name << ": " << avgTime << "ms (avg)" << std::endl;
+    };
+    
+    testMethod("Direct           ", [&]() { CalculateForcesDirect(bodies); });
+    testMethod("Block-Optimized  ", [&]() { CalculateForcesOptimized(bodies); });
+    testMethod("Spatial-Optimized", [&]() { CalculateForcesSpatiallyOptimized(bodies); });
+    
+    // Restore original forces
+    for (size_t i = 0; i < bodies.size(); ++i) {
+        bodies[i]->SetForce(originalForces[i]);
+    }
+    
+    std::cout << "=== Benchmark Complete ===" << std::endl;
 }
 
 } // namespace nbody

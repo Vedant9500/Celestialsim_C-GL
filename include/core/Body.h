@@ -33,6 +33,7 @@ public:
     void SetPosition(const glm::vec2& position);
     void SetVelocity(const glm::vec2& velocity);
     void SetAcceleration(const glm::vec2& acceleration);
+    void SetForce(const glm::vec2& force);
     void SetMass(float mass);
     void SetColor(const glm::vec3& color);
     void SetSelected(bool selected);

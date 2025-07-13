@@ -404,6 +404,26 @@ void UIManager::RenderStatsPanel(const std::vector<std::unique_ptr<Body>>& bodie
         ImGui::Text("Collisions: %.2f ms", physicsStats.collisionTime);
         ImGui::Text("Force Calculations: %d", physicsStats.forceCalculations);
         ImGui::Text("Collisions: %d", physicsStats.collisions);
+        
+        // REF-inspired method information
+        ImGui::Separator();
+        ImGui::TextWrapped("Method Selection (REF-inspired):");
+        if (bodies.size() > 100) {
+            ImGui::BulletText("Spatial-Optimized: Z-order sorting for cache locality");
+        } else if (bodies.size() > 50) {
+            ImGui::BulletText("Block-Optimized: CPU cache-friendly blocks");
+        } else {
+            ImGui::BulletText("Direct: Simple O(n²) calculation");
+        }
+        
+        // Benchmark button
+        if (ImGui::Button("Run Benchmark") && bodies.size() >= 10) {
+            if (OnRunBenchmark) OnRunBenchmark();
+        }
+        if (bodies.size() < 10) {
+            ImGui::SameLine();
+            ImGui::TextDisabled("(Need 10+ bodies)");
+        }
     }
     
     // Energy stats
