@@ -1,15 +1,13 @@
+
 #include "physics/BarnesHut.h"
 #include "core/Body.h"
 #include <algorithm>
-#include <limits>
-#include <iostream> // For debug output
+#include <vector>
+#include <iostream>
 
 namespace nbody {
 
-// Constants
-static constexpr float MIN_DISTANCE = 1e-6f;
-static constexpr float SOFTENING_LENGTH = 0.1f;
-static constexpr float MIN_NODE_SIZE = 1.0f;
+// NOTE: Constants are now correctly sourced from BarnesHut.h
 
 BarnesHutTree::BarnesHutTree() = default;
 
@@ -19,87 +17,84 @@ void BarnesHutTree::BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) 
         return;
     }
     
-    // Reset statistics
     m_stats = TreeStats();
     
-    // Calculate bounding box
     glm::vec2 center;
     float size;
     CalculateBounds(bodies, center, size);
     
-    // Create root node
     m_root = std::make_unique<QuadTreeNode>();
     m_root->center = center;
     m_root->size = size;
-    m_root->isLeaf = true;
     
-    // Debug output
-    std::cout << "Building Barnes-Hut tree for " << bodies.size() << " bodies" << std::endl;
-    std::cout << "Root bounds: center(" << center.x << ", " << center.y << "), size=" << size << std::endl;
-    
-    // Insert all bodies
     for (const auto& body : bodies) {
-        InsertBody(m_root.get(), body.get());
+        // Ensure body is within the root bounds before inserting
+        if (m_root->Contains(body->GetPosition())) {
+            InsertBody(m_root.get(), body.get());
+        }
     }
     
-    // Update mass and center of mass for all nodes
     UpdateMassAndCenter(m_root.get());
     
-    // Count nodes for statistics
     CountNodes(m_root.get(), m_stats);
-    
-    std::cout << "Tree built: " << m_stats.totalNodes << " nodes, " << m_stats.leafNodes << " leaves, max depth " << m_stats.maxDepth << std::endl;
-    std::cout << "Root total mass: " << m_root->totalMass << std::endl;
 }
 
 glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G) const {
     if (!m_root) {
         return glm::vec2(0.0f);
     }
-    
-    // Reset stats for this calculation
     m_stats.forceCalculations = 0;
-    
-    // Use REF-style iterative force calculation instead of recursive
     return CalculateForceIterative(body, theta, G);
 }
 
 void BarnesHutTree::InsertBody(QuadTreeNode* node, Body* body) {
+    // Safety check: ensure body is within node bounds
     if (!node->Contains(body->GetPosition())) {
-        return; // Body is outside this node
+        return;
     }
     
     if (node->isLeaf) {
-        if (!node->body) {
-            // Empty leaf - insert body here
+        if (node->body == nullptr) {
+            // Empty leaf, place the body here.
             node->body = body;
-        } else {
-            // Leaf already contains a body - subdivide
-            Body* existingBody = node->body;
-            node->body = nullptr;
-            node->isLeaf = false;
-            
-            Subdivide(node);
-            
-            // Re-insert both bodies
-            InsertBody(node, existingBody);
-            InsertBody(node, body);
+            return;
         }
-    } else {
-        // Internal node - insert into appropriate child
+        
+        // Leaf is occupied, so we must subdivide.
+        // Edge case: If existing body and new body are at the same position,
+        // it can cause infinite recursion. We handle this by just returning.
+        glm::vec2 delta = node->body->GetPosition() - body->GetPosition();
+        if (glm::dot(delta, delta) < 1e-12f) {
+            return;
+        }
+
+        Body* existingBody = node->body;
+        node->body = nullptr;
+        node->isLeaf = false; // Mark as internal node
+        Subdivide(node);
+        
+        // Re-insert both bodies into the correct new child quadrants.
+        int existingQuadrant = node->GetQuadrant(existingBody->GetPosition());
+        InsertBody(node->children[existingQuadrant].get(), existingBody);
+        
+        int newQuadrant = node->GetQuadrant(body->GetPosition());
+        InsertBody(node->children[newQuadrant].get(), body);
+
+    } else { // Node is internal
+        // Insert the body into the correct child quadrant.
         int quadrant = node->GetQuadrant(body->GetPosition());
-        InsertBody(node->children[quadrant].get(), body);
+        if (node->children[quadrant]) {
+            InsertBody(node->children[quadrant].get(), body);
+        }
     }
 }
 
 void BarnesHutTree::Subdivide(QuadTreeNode* node) {
     float childSize = node->size * 0.5f;
-    
     for (int i = 0; i < 4; ++i) {
         node->children[i] = std::make_unique<QuadTreeNode>();
         node->children[i]->center = node->GetChildCenter(i);
         node->children[i]->size = childSize;
-        node->children[i]->isLeaf = true;
     }
 }
 
@@ -115,145 +110,93 @@ void BarnesHutTree::UpdateMassAndCenter(QuadTreeNode* node) {
             node->centerOfMass = glm::vec2(0.0f);
         }
     } else {
+        // CORRECTED: Calculate center of mass for an internal node.
+        // Sum weighted positions and total mass, then perform a single division.
         node->totalMass = 0.0f;
-        node->centerOfMass = glm::vec2(0.0f);
-        
+        glm::vec2 weightedPositionSum(0.0f);
+
         for (int i = 0; i < 4; ++i) {
             if (node->children[i]) {
                 UpdateMassAndCenter(node->children[i].get());
                 
                 float childMass = node->children[i]->totalMass;
                 if (childMass > 0.0f) {
-                    glm::vec2 weightedPos = node->children[i]->centerOfMass * childMass;
-                    node->centerOfMass = (node->centerOfMass * node->totalMass + weightedPos) / (node->totalMass + childMass);
                     node->totalMass += childMass;
+                    weightedPositionSum += node->children[i]->centerOfMass * childMass;
                 }
             }
         }
+
+        if (node->totalMass > 1e-9f) {
+            node->centerOfMass = weightedPositionSum / node->totalMass;
+        } else {
+            node->centerOfMass = node->center; // Default to geometric center if massless
+        }
     }
 }
 
-glm::vec2 BarnesHutTree::CalculateForceRecursive(const QuadTreeNode* node, const Body& body, float theta, float G) const {
-    if (!node || node->totalMass <= 0.0f) {
-        return glm::vec2(0.0f);
-    }
-    
-    // Calculate vector from body to node center of mass
-    glm::vec2 r = node->centerOfMass - body.GetPosition();
-    float distanceSq = glm::dot(r, r);  // Squared distance
-    
-    // Skip if too close (likely self-interaction)
-    if (distanceSq < MIN_DISTANCE * MIN_DISTANCE) {
-        return glm::vec2(0.0f);
-    }
-    
-    // REF-style approximation criteria: s² < theta * d²
-    float sizeSq = node->size * node->size;
-    
-    // If this is a leaf node OR the node is far enough (satisfies approximation criteria)
-    if (node->isLeaf || sizeSq < (theta * distanceSq)) {
-        // For leaf nodes, ensure we're not calculating force on self
-        if (node->isLeaf && node->body == &body) {
-            return glm::vec2(0.0f);
-        }
-        
-        // Calculate gravitational force using REF formula
-        float softeningSq = SOFTENING_LENGTH * SOFTENING_LENGTH;
-        float effectiveDistSq = distanceSq + softeningSq;
-        float invDist = 1.0f / std::pow(effectiveDistSq, 1.5f);
-        
-        // Force = (G * mass) * r * invDist (where r is the vector, not normalized)
-        float forceMagnitude = G * node->totalMass * invDist;
-        
-        // Apply force capping for stability
-        static constexpr float MAX_FORCE = 10000.0f;
-        if (forceMagnitude > MAX_FORCE) {
-            forceMagnitude = MAX_FORCE;
-        }
-        
-        glm::vec2 force = r * forceMagnitude;
-        
-        m_stats.forceCalculations++;
-        return force;
-    } else {
-        // Node is too close - must recurse into children
-        glm::vec2 totalForce(0.0f);
-        
-        for (int i = 0; i < 4; ++i) {
-            if (node->children[i] && node->children[i]->totalMass > 0.0f) {
-                totalForce += CalculateForceRecursive(node->children[i].get(), body, theta, G);
-            }
-        }
-        
-        return totalForce;
-    }
-}
-
-// REF-inspired iterative force calculation - more stable than recursive
 glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, float G) const {
     glm::vec2 totalForce(0.0f);
+    if (!m_root || m_root->totalMass <= 0.0f) {
+        return totalForce;
+    }
+
     std::vector<const QuadTreeNode*> stack;
-    
-    if (!m_root || m_root->totalMass <= 0.0f) return totalForce;
-    
     stack.push_back(m_root.get());
-    
+
     while (!stack.empty()) {
         const QuadTreeNode* node = stack.back();
         stack.pop_back();
-        
-        if (!node || node->totalMass <= 0.0f) continue;
-        
-        // Calculate distance to node's center of mass
+
+        if (!node || node->totalMass <= 0.0f) {
+            continue;
+        }
+
         glm::vec2 r = node->centerOfMass - body.GetPosition();
-        float distance = glm::length(r);
+        float distanceSq = glm::dot(r, r);
+        float nodeWidthSq = node->size * node->size;
         
-        if (distance < MIN_DISTANCE) continue;
-        
-        // REF-style approximation criteria: s² < theta * d²
-        // Note: Our 'size' is half-size (radius), REF uses full size
-        float fullSize = node->size * 2.0f;  // Convert to full size like REF
-        float sizeSq = fullSize * fullSize;
-        float distanceSq = distance * distance;
-        
-        // REF uses theta²: if theta=0.5, they compare with 0.25*d²
-        float thetaSq = theta * theta;
-        
-        // If node is leaf OR satisfies approximation criteria
-        if (node->isLeaf || sizeSq < (thetaSq * distanceSq)) {
-            // Check for self-interaction in leaf nodes
-            if (node->isLeaf && node->body == &body) {
+        // CORRECTED LOGIC: The core Barnes-Hut approximation test (s/d < theta)
+        // This is equivalent to s^2 / d^2 < theta^2, or s^2 < theta^2 * d^2
+        if (nodeWidthSq < theta * theta * distanceSq) {
+            // Node is far enough away, treat it as a single point mass.
+            // This now correctly handles both far-away leaves and internal nodes.
+        } else if (node->isLeaf) {
+            // Node is a leaf, but it's too close. We must do a direct calculation.
+            // We must also ensure it's not the body calculating force on itself.
+            if (node->body == &body) {
                 continue; // Skip self-interaction
             }
-            
-            // Calculate force using REF formula
-            float softeningSq = SOFTENING_LENGTH * SOFTENING_LENGTH;
-            float effectiveDistSq = distanceSq + softeningSq;
-            float invDist = 1.0f / std::pow(effectiveDistSq, 1.5f);
-            
-            glm::vec2 force = r * (G * node->totalMass * invDist);
-            
-            // Cap force magnitude to prevent instability
-            float forceMagnitude = glm::length(force);
-            static constexpr float MAX_FORCE = 10000.0f;
-            if (forceMagnitude > MAX_FORCE) {
-                force = glm::normalize(force) * MAX_FORCE;
-            }
-            
-            totalForce += force;
-            m_stats.forceCalculations++;
         } else {
-            // Node is too close - add children to stack
+            // Node is an internal node and it's too close.
+            // Push its children onto the stack to investigate further.
             for (int i = 0; i < 4; ++i) {
-                if (node->children[i] && node->children[i]->totalMass > 0.0f) {
+                if (node->children[i]) {
                     stack.push_back(node->children[i].get());
                 }
             }
+            continue; // Skip the force calculation for this internal node, as we use its children.
+        }
+
+        // --- Perform Force Calculation ---
+        // This block is reached if:
+        // 1. The node was far enough away (approximated).
+        // 2. The node was a close leaf (direct calculation, not self).
+        
+        // Add softening to prevent extreme forces when particles are very close.
+        float effectiveDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+        
+        if (effectiveDistSq > 1e-12f) { // Avoid division by zero
+            // REF-style force calculation: F = G * m * r_vec / (dist^2 + softening^2)^1.5
+            float invDist = 1.0f / std::pow(effectiveDistSq, 1.5f);
+            totalForce += r * (G * node->totalMass * invDist);
+            m_stats.forceCalculations++;
         }
     }
     
     return totalForce;
 }
+
 
 void BarnesHutTree::CalculateBounds(const std::vector<std::unique_ptr<Body>>& bodies, glm::vec2& center, float& size) const {
     if (bodies.empty()) {
@@ -262,29 +205,24 @@ void BarnesHutTree::CalculateBounds(const std::vector<std::unique_ptr<Body>>& bo
         return;
     }
     
-    // Find bounding box
     glm::vec2 minPos = bodies[0]->GetPosition();
     glm::vec2 maxPos = bodies[0]->GetPosition();
     
-    for (const auto& body : bodies) {
-        glm::vec2 pos = body->GetPosition();
+    for (size_t i = 1; i < bodies.size(); ++i) {
+        const glm::vec2& pos = bodies[i]->GetPosition();
         minPos.x = std::min(minPos.x, pos.x);
         minPos.y = std::min(minPos.y, pos.y);
         maxPos.x = std::max(maxPos.x, pos.x);
         maxPos.y = std::max(maxPos.y, pos.y);
     }
     
-    // Calculate center and size
     center = (minPos + maxPos) * 0.5f;
-    glm::vec2 extent = maxPos - minPos;
-    size = std::max(extent.x, extent.y);
+    float sizeX = maxPos.x - minPos.x;
+    float sizeY = maxPos.y - minPos.y;
+    size = std::max(sizeX, sizeY);
     
-    // Add some padding to ensure all bodies fit
-    size *= 1.1f;
-    
-    // Ensure minimum size
-    static constexpr float LOCAL_MIN_NODE_SIZE = 1.0f;
-    size = std::max(size, LOCAL_MIN_NODE_SIZE);
+    size *= 1.05f; // Add 5% padding to prevent bodies from falling on the edge
+    size = std::max(size, MIN_NODE_SIZE);
 }
 
 void BarnesHutTree::CountNodes(const QuadTreeNode* node, TreeStats& stats, int depth) const {
@@ -294,7 +232,9 @@ void BarnesHutTree::CountNodes(const QuadTreeNode* node, TreeStats& stats, int d
     stats.maxDepth = std::max(stats.maxDepth, depth);
     
     if (node->isLeaf) {
-        stats.leafNodes++;
+        if (node->body) {
+            stats.leafNodes++;
+        }
     } else {
         for (int i = 0; i < 4; ++i) {
             if (node->children[i]) {

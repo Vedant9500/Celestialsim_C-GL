@@ -166,7 +166,7 @@ private:
     bool m_enableCollisions = true;
     float m_restitution = 0.8f;
     bool m_useGPU = false;
-    bool m_gpuAvailable = false;
+    bool m_gpuAvailable = false; // Track GPU availability
     
     // Rendering settings
     float m_cameraZoom = 1.0f;
@@ -176,6 +176,8 @@ private:
     std::vector<float> m_fpsHistory;
     std::vector<float> m_energyHistory;
     size_t m_maxHistorySize = 100;
+    
+    // Energy tracking
     size_t m_energyHistoryIndex = 0;
     
     // File dialog state
