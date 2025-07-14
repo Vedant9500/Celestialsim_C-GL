@@ -173,6 +173,8 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
 void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>& bodies) {
     auto start = std::chrono::high_resolution_clock::now();
     
+    std::cout << "Using Barnes-Hut for " << bodies.size() << " bodies" << std::endl;
+    
     // Build Barnes-Hut tree
     m_barnesHutTree->BuildTree(bodies);
     
@@ -181,6 +183,8 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
     
     const float G = m_config.gravitationalConstant;
     const float theta = m_config.barnesHutTheta;
+    
+    std::cout << "Using G=" << G << ", theta=" << theta << std::endl;
     
     // Calculate forces using Barnes-Hut approximation
     // Use sequential execution to avoid race conditions with stats
@@ -193,6 +197,7 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
     
     auto treeStats = m_barnesHutTree->GetStats();
     m_stats.forceCalculations = treeStats.forceCalculations;
+    std::cout << "Total force calculations: " << m_stats.forceCalculations << std::endl;
 }
 
 void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodies) {
