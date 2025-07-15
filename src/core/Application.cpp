@@ -269,9 +269,9 @@ void Application::HandleInput() {
             lastPanPos = m_mousePosition;
         } else {
             glm::vec2 delta = m_mousePosition - lastPanPos;
-            // We want camera movement to follow mouse drag direction directly
-            // No need to invert Y since we want to move in the direction of the drag
-            glm::vec2 correctedDelta = delta * 0.002f;
+            // Invert the Y component to make camera move naturally with drag direction
+            // When user drags up, the camera should move up (negative y in screen space is up)
+            glm::vec2 correctedDelta = glm::vec2(delta.x, -delta.y) * 0.002f;
             m_renderer->PanCamera(correctedDelta); // Smoother panning
             lastPanPos = m_mousePosition;
         }
@@ -867,7 +867,7 @@ void Application::SpawnBodies(int count, int pattern) {
     // Use advanced spatial distribution algorithms from REF
     auto positions = GenerateSpatialDistribution(count, pattern, baseRadius, gen);
     
-    for (int i = 0; i < count && i < positions.size(); ++i) {
+    for (int i = 0; i < count && i < static_cast<int>(positions.size()); ++i) {
         glm::vec2 position = positions[i];
         glm::vec2 velocity = CalculateVelocityForPattern(position, pattern, speed, i, count, gen);
         AddBody(position, velocity, mass);
@@ -1019,7 +1019,7 @@ std::vector<glm::vec2> Application::GenerateSpatialDistribution(int count, int p
             int maxAttempts = count * 100; // Limit attempts to avoid infinite loops
             int attempts = 0;
             
-            while (positions.size() < count && attempts < maxAttempts) {
+            while (static_cast<int>(positions.size()) < count && attempts < maxAttempts) {
                 glm::vec2 candidate;
                 float radiusSquared;
                 
@@ -1201,9 +1201,9 @@ std::vector<glm::vec2> Application::GeneratePoissonDiskSampling(int targetCount,
     
     int maxAttempts = 30; // Attempts per active point
     
-    while (!activeList.empty() && points.size() < targetCount) {
+    while (!activeList.empty() && static_cast<int>(points.size()) < targetCount) {
         // Choose random active point
-        activeDist = std::uniform_int_distribution<int>(0, activeList.size() - 1);
+        activeDist = std::uniform_int_distribution<int>(0, static_cast<int>(activeList.size()) - 1);
         int activeIndex = activeDist(gen);
         glm::vec2 activePoint = activeList[activeIndex];
         
@@ -1232,8 +1232,8 @@ std::vector<glm::vec2> Application::GeneratePoissonDiskSampling(int targetCount,
                     
                     int pointIndex = grid[neighborGrid.x][neighborGrid.y];
                     if (pointIndex >= 0) {
-                        float dist = glm::length(candidate - points[pointIndex]);
-                        if (dist < minDistance) {
+                        float pointDist = glm::length(candidate - points[pointIndex]);
+                        if (pointDist < minDistance) {
                             tooClose = true;
                         }
                     }
@@ -1244,7 +1244,7 @@ std::vector<glm::vec2> Application::GeneratePoissonDiskSampling(int targetCount,
                 // Valid point found
                 points.push_back(candidate);
                 activeList.push_back(candidate);
-                grid[candidateGrid.x][candidateGrid.y] = points.size() - 1;
+                grid[candidateGrid.x][candidateGrid.y] = static_cast<int>(points.size()) - 1;
                 foundNewPoint = true;
                 break;
             }
@@ -1259,7 +1259,7 @@ std::vector<glm::vec2> Application::GeneratePoissonDiskSampling(int targetCount,
     return points;
 }
 
-glm::vec2 Application::CalculateVelocityForPattern(const glm::vec2& position, int pattern, float speed, int index, int totalCount, std::mt19937& gen) {
+glm::vec2 Application::CalculateVelocityForPattern(const glm::vec2& position, int pattern, float speed, int /*index*/, int /*totalCount*/, std::mt19937& gen) {
     if (speed <= 0.0f) {
         return glm::vec2(0.0f);
     }
