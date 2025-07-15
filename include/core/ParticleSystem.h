@@ -8,7 +8,7 @@
 namespace nbody {
 
 /**
- * @brief Manages a collection of particles following REF implementation pattern
+ * @brief Manages a collection of particles
  * Provides efficient data access for physics solvers
  */
 class ParticleSystem {

@@ -5,8 +5,8 @@
 namespace nbody {
 
 /**
- * @brief Simple 2D particle data container following REF architecture pattern
- * Optimized for 2D N-body simulation (not 3D like REF)
+ * @brief Simple 2D particle data container
+ * Optimized for 2D N-body simulation
  * Separates physics data from rendering/UI concerns
  */
 class Particle {

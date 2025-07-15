@@ -72,7 +72,7 @@ public:
     /**
      * @brief Render all bodies
      * @param bodies Vector of bodies to render
-     * @param physics Physics engine reference
+     * @param physics Physics engine instance
      * @param selectedBody Currently selected body (highlighted)
      */
     void Render(const std::vector<std::unique_ptr<Body>>& bodies,

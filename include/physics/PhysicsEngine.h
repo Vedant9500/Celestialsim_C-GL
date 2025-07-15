@@ -43,11 +43,11 @@ struct EnergyStats {
  * @brief Configuration for physics simulation
  */
 struct PhysicsConfig {
-    float gravitationalConstant = 1.0f;   // REF standard: G = 1.0 for unit scaling
+    float gravitationalConstant = 1.0f;   // Standard: G = 1.0 for unit scaling
     float timeStep = 0.016f;              // 60 FPS target
     float timeScale = 1.0f;               // Speed multiplier
-    float softeningLength = 0.1f;         // REF-style small softening for accuracy
-    float dampingFactor = 1.0f;           // No damping by default (REF standard)
+    float softeningLength = 0.1f;         // Small softening for accuracy
+    float dampingFactor = 1.0f;           // No damping by default
     bool useBarnesHut = true;
     float barnesHutTheta = 0.7f;          // Higher value for better performance (~0.5-1.0)
     bool enableCollisions = true;
@@ -123,7 +123,7 @@ public:
     void Reset();
     
     // Performance and debugging
-    void BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies);  // REF-inspired benchmarking
+    void BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies);  // Performance benchmarking
     
     // Barnes-Hut tree access for visualization
     const BarnesHutTree* GetBarnesHutTree() const { return m_barnesHutTree.get(); }

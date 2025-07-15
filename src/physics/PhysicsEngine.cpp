@@ -133,7 +133,7 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
     
     m_stats.forceCalculations = 0;
     
-    // REF-style parallel force calculation for better performance
+    // Parallel force calculation for better performance
     #pragma omp parallel for schedule(dynamic) shared(bodies)
     for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
         auto& bodyA = bodies[i];
@@ -147,17 +147,17 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
             
             auto& bodyB = bodies[j];
             
-            // Calculate direction vector from bodyA to bodyB (REF: vector_i_j)
+            // Calculate direction vector from bodyA to bodyB
             glm::vec2 vector_i_j = bodyB->GetPosition() - bodyA->GetPosition();
             
-            // REF-style distance calculation: pow(dot(r,r) + softening², 1.5)
+            // Distance calculation: pow(dot(r,r) + softening², 1.5)
             // This is more numerically stable than sqrt-based approaches
             float distanceSquared = glm::dot(vector_i_j, vector_i_j);
             float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
             
             // Prevent division by zero (though pow(softening², 1.5) should handle this)
             if (distance_i_j > 1e-10f) {
-                // REF formula: F = ((G * mass_j) / distance_i_j) * vector_i_j
+                // Force formula: F = ((G * mass_j) / distance_i_j) * vector_i_j
                 // Note: Mass of bodyA will be cancelled out when converting F to acceleration
                 float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
                 
@@ -230,7 +230,7 @@ void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodie
 void PhysicsEngine::IntegrateMotion(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    // Use leapfrog integration to match reference implementation
+    // Use leapfrog integration for better stability
     IntegrateLeapfrog(bodies, deltaTime);
     
     auto end = std::chrono::high_resolution_clock::now();
@@ -244,7 +244,7 @@ void PhysicsEngine::IntegrateEuler(std::vector<std::unique_ptr<Body>>& bodies, f
 }
 
 void PhysicsEngine::IntegrateLeapfrog(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
-    // REF-style leapfrog integration for better stability
+    // Leapfrog integration for better stability
     const float dtDividedBy2 = deltaTime * 0.5f;
     const float damping = m_config.dampingFactor;
     const float maxVelocity = 500.0f; // Maximum velocity to prevent instability
@@ -423,12 +423,12 @@ void PhysicsEngine::EndTimer(double& timeAccumulator) {
 }
 
 void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>& bodies) {
-    // REF-inspired optimized force calculation with better memory access patterns
+    // Optimized force calculation with better memory access patterns
     const float G = m_config.gravitationalConstant;
     const float softeningSq = m_config.softeningLength * m_config.softeningLength;
     const size_t bodyCount = bodies.size();
     
-    // Block-based calculation to improve cache locality (inspired by REF GPU shared memory)
+    // Block-based calculation to improve cache locality
     constexpr size_t BLOCK_SIZE = 32; // Smaller blocks for better load balancing
     
     m_stats.forceCalculations = 0;
@@ -463,15 +463,15 @@ void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>&
                 auto& bodyB = bodies[j];
                 glm::vec2 posB = bodyB->GetPosition();
                 
-                // REF-style vector calculation
+                // Vector calculation
                 glm::vec2 vector_i_j = posB - posA;
                 float distanceSquared = glm::dot(vector_i_j, vector_i_j);
                 
-                // REF-style distance calculation with numerical stability
+                // Distance calculation with numerical stability
                 float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
                 
                 if (distance_i_j > 1e-10f) {
-                    // REF formula: accumulate force without mass of bodyA (cancelled in acceleration)
+                    // Accumulate force without mass of bodyA (cancelled in acceleration)
                     float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
                     totalForce += forceMagnitude * vector_i_j;
                     localForceCalculations++;
@@ -488,7 +488,7 @@ void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>&
 }
 
 void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_ptr<Body>>& bodies) {
-    // REF-inspired spatial optimization using sorting for cache locality
+    // Spatial optimization using sorting for cache locality
     const float G = m_config.gravitationalConstant;
     const float softeningSq = m_config.softeningLength * m_config.softeningLength;
     
@@ -496,7 +496,7 @@ void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_pt
     std::vector<size_t> sortedIndices(bodies.size());
     std::iota(sortedIndices.begin(), sortedIndices.end(), 0);
     
-    // Sort by spatial hash (simplified version of REF's Morton codes)
+    // Sort by spatial hash (simplified Morton codes)
     std::sort(sortedIndices.begin(), sortedIndices.end(), [&bodies](size_t a, size_t b) {
         auto posA = bodies[a]->GetPosition();
         auto posB = bodies[b]->GetPosition();
@@ -542,7 +542,7 @@ void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_pt
             auto& bodyB = bodies[j];
             glm::vec2 posB = bodyB->GetPosition();
             
-            // REF-style calculation
+            // Force calculation
             glm::vec2 vector_i_j = posB - posA;
             float distanceSquared = glm::dot(vector_i_j, vector_i_j);
             float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
@@ -562,7 +562,7 @@ void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_pt
 }
 
 void PhysicsEngine::BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies) {
-    // REF-inspired performance benchmarking of different force calculation methods
+    // Performance benchmarking of different force calculation methods
     if (bodies.size() < 10) return; // Skip for very small simulations
     
     const int numIterations = 5;

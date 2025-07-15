@@ -422,9 +422,9 @@ void UIManager::RenderStatsPanel(const std::vector<std::unique_ptr<Body>>& bodie
         ImGui::Text("Force Calculations: %d", physicsStats.forceCalculations);
         ImGui::Text("Collisions: %d", physicsStats.collisions);
         
-        // REF-inspired method information
+        // Method information
         ImGui::Separator();
-        ImGui::TextWrapped("Method Selection (REF-inspired):");
+        ImGui::TextWrapped("Method Selection:");
         if (bodies.size() > 100) {
             ImGui::BulletText("Spatial-Optimized: Z-order sorting for cache locality");
         } else if (bodies.size() > 50) {

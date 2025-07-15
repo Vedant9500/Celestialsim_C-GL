@@ -39,8 +39,8 @@ public:
     /**
      * @brief Render the UI
      * @param bodies Vector of bodies
-     * @param physics Physics engine reference
-     * @param renderer Renderer reference
+     * @param physics Physics engine instance
+     * @param renderer Renderer instance
      * @param selectedBody Currently selected body
      */
     void Render(const std::vector<std::unique_ptr<Body>>& bodies,
@@ -51,7 +51,7 @@ public:
     /**
      * @brief Render Barnes-Hut tree visualization
      * @param bodies Vector of bodies
-     * @param physics Physics engine reference
+     * @param physics Physics engine instance
      */
     void RenderBarnesHutVisualization(const std::vector<std::unique_ptr<Body>>& bodies,
                                      const PhysicsEngine& physics);
@@ -130,7 +130,7 @@ public:
     std::function<void(int, int)> OnSpawnBodies;  // (count, pattern)
     std::function<void(const glm::vec2&)> OnSetCameraPosition;
     std::function<void(float)> OnSetCameraZoom;
-    std::function<void()> OnRunBenchmark;  // REF-inspired performance benchmarking
+    std::function<void()> OnRunBenchmark;  // Performance benchmarking callback
     
 private:
     // Window state

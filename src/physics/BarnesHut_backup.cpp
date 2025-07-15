@@ -181,7 +181,7 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
         float nodeWidthSq = node->size * node->size;
         
         // CORRECTED LOGIC: The core Barnes-Hut approximation test (s/d < theta)
-        // REF uses: s_squared < theta * dist_squared (where theta = 0.5*0.5 = 0.25)
+        // Standard formula: s_squared < theta * dist_squared (where theta = 0.5*0.5 = 0.25)
         if (nodeWidthSq < theta * distanceSq) {
             // Node is far enough away, treat it as a single point mass.
         } else if (node->isLeaf) {
@@ -210,13 +210,13 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
         // 1. The node was far enough away (approximated).
         // 2. The node was a close leaf (direct calculation, not self).
         
-        // REF: Check if distance is greater than 0 and node is occupied
+        // Check if distance is greater than 0 and node is occupied
         if (distanceSq > 0.0f && node->totalMass > 0.0f) {
             // Add softening to prevent extreme forces when particles are very close.
             float effectiveDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
             
             if (effectiveDistSq > 1e-12f) { // Avoid division by zero
-                // REF-style force calculation: F = G * m * r_vec / (dist^2 + softening^2)^1.5
+                // Standard force calculation: F = G * m * r_vec / (dist^2 + softening^2)^1.5
                 // CRITICAL FIX: Use vector from particle to center of mass (attractive force)
                 float invDist = 1.0f / std::pow(effectiveDistSq, 1.5f);
                 totalForce += r * (G * node->totalMass * invDist);

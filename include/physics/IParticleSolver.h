@@ -5,7 +5,7 @@
 namespace nbody {
 
 /**
- * @brief Abstract base class for physics solvers following REF implementation pattern
+ * @brief Abstract base class for physics solvers
  * Provides clean separation between physics algorithms and data
  */
 class IParticleSolver {

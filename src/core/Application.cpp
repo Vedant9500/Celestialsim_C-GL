@@ -171,7 +171,7 @@ bool Application::Initialize() {
     
     m_ui->OnDeleteBody = [this](Body* body) { RemoveBody(body); };
     
-    // REF-inspired performance benchmarking
+    // Performance benchmarking
     m_ui->OnRunBenchmark = [this]() {
         if (m_physics) {
             m_physics->BenchmarkMethods(m_bodies);
@@ -864,7 +864,7 @@ void Application::SpawnBodies(int count, int pattern) {
     float mass = m_ui->GetSpawnMass();
     float speed = m_ui->GetSpawnSpeed();
     
-    // Use advanced spatial distribution algorithms from REF
+    // Use advanced spatial distribution algorithms
     auto positions = GenerateSpatialDistribution(count, pattern, baseRadius, gen);
     
     for (int i = 0; i < count && i < static_cast<int>(positions.size()); ++i) {
