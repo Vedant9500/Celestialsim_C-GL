@@ -129,7 +129,7 @@ public:
     void SetCameraZoom(float zoom) { m_camera.targetZoom = zoom; }
     void ZoomIn(float factor = 1.2f) { m_camera.targetZoom *= factor; }
     void ZoomOut(float factor = 1.2f) { m_camera.targetZoom /= factor; }
-    void PanCamera(const glm::vec2& delta) { m_camera.position += delta / m_camera.zoom; }
+    void PanCamera(const glm::vec2& delta) { m_camera.position += delta; }
     
     // Coordinate conversion
     glm::vec2 ScreenToWorld(const glm::vec2& screenPos) const;

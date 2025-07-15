@@ -269,9 +269,10 @@ void Application::HandleInput() {
             lastPanPos = m_mousePosition;
         } else {
             glm::vec2 delta = m_mousePosition - lastPanPos;
-            // Convert screen delta to world delta based on zoom
-            float panScale = 1.0f / m_renderer->GetCamera().zoom;
-            m_renderer->PanCamera(-delta * panScale * 0.002f); // Smoother panning
+            // We want camera movement to follow mouse drag direction directly
+            // No need to invert Y since we want to move in the direction of the drag
+            glm::vec2 correctedDelta = delta * 0.002f;
+            m_renderer->PanCamera(correctedDelta); // Smoother panning
             lastPanPos = m_mousePosition;
         }
     } else {
