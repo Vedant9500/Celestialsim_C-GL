@@ -718,6 +718,9 @@ void UIManager::RenderBarnesHutPanel(const std::vector<std::unique_ptr<Body>>& b
 
 void UIManager::RenderBarnesHutVisualization(const std::vector<std::unique_ptr<Body>>& bodies,
                                            const PhysicsEngine& physics) {
+    // Mark bodies parameter as intentionally unused
+    (void)bodies;
+    
     // Skip if we don't have a draw list or the visualization is disabled
     ImDrawList* drawList = ImGui::GetBackgroundDrawList();
     if (!drawList || !m_visualizeBarnesHut) return;
