@@ -203,6 +203,13 @@ private:
     // Performance tracking
     RenderStats m_stats;
     std::chrono::high_resolution_clock::time_point m_frameStart;
+    std::chrono::high_resolution_clock::time_point m_lastFrameTime;
+    
+    // FPS smoothing
+    static constexpr int FPS_HISTORY_SIZE = 60;
+    std::vector<float> m_fpsHistory;
+    int m_fpsHistoryIndex = 0;
+    bool m_fpsHistoryFull = false;
     
     // Instance data for efficient rendering
     struct BodyInstance {

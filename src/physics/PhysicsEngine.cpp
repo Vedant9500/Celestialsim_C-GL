@@ -21,6 +21,11 @@ static constexpr float MAX_FORCE = 10000.0f; // Maximum force to prevent instabi
 PhysicsEngine::PhysicsEngine() {
     m_bodyArrays = std::make_unique<BodyArrays>();
     m_barnesHutTree = std::make_unique<BarnesHutTree>(); // Already in nbody namespace
+    
+    // Configure OpenMP for maximum parallelization
+    int numThreads = omp_get_max_threads();
+    omp_set_num_threads(numThreads);
+    std::cout << "Physics Engine: Using " << numThreads << " threads for parallel computation" << std::endl;
 }
 
 PhysicsEngine::~PhysicsEngine() {
@@ -129,12 +134,13 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
     m_stats.forceCalculations = 0;
     
     // REF-style parallel force calculation for better performance
-    #pragma omp parallel for schedule(static) shared(bodies)
+    #pragma omp parallel for schedule(dynamic) shared(bodies)
     for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
         auto& bodyA = bodies[i];
         if (bodyA->IsFixed()) continue;
         
         glm::vec2 totalForce(0.0f);
+        int localForceCalculations = 0;
         
         for (size_t j = 0; j < bodies.size(); ++j) {
             if (static_cast<size_t>(i) == j) continue;
@@ -159,14 +165,15 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
                 forceMagnitude = std::min(forceMagnitude, MAX_FORCE);
                 
                 totalForce += forceMagnitude * vector_i_j;
-                
-                #pragma omp atomic
-                m_stats.forceCalculations++;
+                localForceCalculations++;
             }
         }
         
         // Apply total force to body
         bodyA->ApplyForce(totalForce);
+        
+        #pragma omp atomic
+        m_stats.forceCalculations += localForceCalculations;
     }
 }
 
@@ -422,7 +429,7 @@ void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>&
     const size_t bodyCount = bodies.size();
     
     // Block-based calculation to improve cache locality (inspired by REF GPU shared memory)
-    constexpr size_t BLOCK_SIZE = 64; // Match REF compute shader block size
+    constexpr size_t BLOCK_SIZE = 32; // Smaller blocks for better load balancing
     
     m_stats.forceCalculations = 0;
     
@@ -431,9 +438,15 @@ void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>&
         body->ClearForce();
     }
     
-    // Block-based force calculation for better cache performance
-    for (size_t blockStart = 0; blockStart < bodyCount; blockStart += BLOCK_SIZE) {
+    // Calculate number of blocks
+    const size_t numBlocks = (bodyCount + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    
+    // Parallel block-based force calculation for better cache performance
+    #pragma omp parallel for schedule(dynamic) shared(bodies)
+    for (int blockIdx = 0; blockIdx < static_cast<int>(numBlocks); ++blockIdx) {
+        size_t blockStart = blockIdx * BLOCK_SIZE;
         size_t blockEnd = std::min(blockStart + BLOCK_SIZE, bodyCount);
+        int localForceCalculations = 0;
         
         // Calculate forces for current block against all other bodies
         for (size_t i = blockStart; i < blockEnd; ++i) {
@@ -461,13 +474,16 @@ void PhysicsEngine::CalculateForcesOptimized(std::vector<std::unique_ptr<Body>>&
                     // REF formula: accumulate force without mass of bodyA (cancelled in acceleration)
                     float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
                     totalForce += forceMagnitude * vector_i_j;
-                    m_stats.forceCalculations++;
+                    localForceCalculations++;
                 }
             }
             
-            // Apply accumulated force
+            // Apply accumulated force to body
             bodyA->ApplyForce(totalForce);
         }
+        
+        #pragma omp atomic
+        m_stats.forceCalculations += localForceCalculations;
     }
 }
 
@@ -509,16 +525,18 @@ void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_pt
     }
     
     // Calculate forces using spatially sorted order for better cache locality
-    for (size_t idx_i = 0; idx_i < sortedIndices.size(); ++idx_i) {
+    #pragma omp parallel for schedule(dynamic) shared(bodies, sortedIndices)
+    for (int idx_i = 0; idx_i < static_cast<int>(sortedIndices.size()); ++idx_i) {
         size_t i = sortedIndices[idx_i];
         auto& bodyA = bodies[i];
         if (bodyA->IsFixed()) continue;
         
         glm::vec2 totalForce(0.0f);
         glm::vec2 posA = bodyA->GetPosition();
+        int localForceCalculations = 0;
         
         for (size_t idx_j = 0; idx_j < sortedIndices.size(); ++idx_j) {
-            if (idx_i == idx_j) continue;
+            if (static_cast<size_t>(idx_i) == idx_j) continue;
             
             size_t j = sortedIndices[idx_j];
             auto& bodyB = bodies[j];
@@ -532,11 +550,14 @@ void PhysicsEngine::CalculateForcesSpatiallyOptimized(std::vector<std::unique_pt
             if (distance_i_j > 1e-10f) {
                 float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
                 totalForce += forceMagnitude * vector_i_j;
-                m_stats.forceCalculations++;
+                localForceCalculations++;
             }
         }
         
         bodyA->ApplyForce(totalForce);
+        
+        #pragma omp atomic
+        m_stats.forceCalculations += localForceCalculations;
     }
 }
 

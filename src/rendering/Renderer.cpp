@@ -139,7 +139,10 @@ std::string Shader::ReadFile(const std::string& path) const {
     return buffer.str();
 }
 
-Renderer::Renderer() = default;
+Renderer::Renderer() {
+    m_fpsHistory.resize(FPS_HISTORY_SIZE, 0.0f);
+    m_lastFrameTime = std::chrono::high_resolution_clock::now();
+}
 
 Renderer::~Renderer() {
     CleanupGL();
@@ -414,6 +417,37 @@ void Renderer::StartTimer() {
 void Renderer::EndTimer() {
     auto end = std::chrono::high_resolution_clock::now();
     m_stats.renderTime = std::chrono::duration<double, std::milli>(end - m_frameStart).count();
+    
+    // Calculate frame time in seconds
+    m_stats.frameTime = std::chrono::duration<double>(end - m_lastFrameTime).count();
+    
+    // Calculate instantaneous FPS
+    float instantFPS = 0.0f;
+    if (m_stats.frameTime > 0.0) {
+        instantFPS = static_cast<float>(1.0 / m_stats.frameTime);
+    }
+    
+    // Store in history for smoothing
+    m_fpsHistory[m_fpsHistoryIndex] = instantFPS;
+    m_fpsHistoryIndex = (m_fpsHistoryIndex + 1) % FPS_HISTORY_SIZE;
+    if (m_fpsHistoryIndex == 0) {
+        m_fpsHistoryFull = true;
+    }
+    
+    // Calculate smoothed FPS (average of recent frames)
+    int sampleCount = m_fpsHistoryFull ? FPS_HISTORY_SIZE : m_fpsHistoryIndex;
+    if (sampleCount > 0) {
+        float sum = 0.0f;
+        for (int i = 0; i < sampleCount; ++i) {
+            sum += m_fpsHistory[i];
+        }
+        m_stats.fps = sum / sampleCount;
+    } else {
+        m_stats.fps = 0.0f;
+    }
+    
+    // Update last frame time for next calculation
+    m_lastFrameTime = end;
 }
 
 void Renderer::CheckGLError(const std::string& operation) const {
