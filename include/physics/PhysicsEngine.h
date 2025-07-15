@@ -5,6 +5,7 @@
 #include <vector>
 #include <memory>
 #include <chrono>
+#include "physics/BarnesHut.h"
 
 namespace nbody {
 
@@ -48,7 +49,7 @@ struct PhysicsConfig {
     float softeningLength = 0.1f;         // REF-style small softening for accuracy
     float dampingFactor = 1.0f;           // No damping by default (REF standard)
     bool useBarnesHut = true;
-    float barnesHutTheta = 0.25f;         // REF standard theta value (0.5 * 0.5)
+    float barnesHutTheta = 0.7f;          // Higher value for better performance (~0.5-1.0)
     bool enableCollisions = true;
     float restitution = 0.8f;
     bool adaptiveTimeStep = false;
@@ -124,6 +125,9 @@ public:
     // Performance and debugging
     void BenchmarkMethods(std::vector<std::unique_ptr<Body>>& bodies);  // REF-inspired benchmarking
     
+    // Barnes-Hut tree access for visualization
+    const BarnesHutTree* GetBarnesHutTree() const { return m_barnesHutTree.get(); }
+    
 private:
     PhysicsConfig m_config;
     PhysicsStats m_stats;
@@ -135,30 +139,7 @@ private:
     // Structure of Arrays for efficient calculations
     std::unique_ptr<BodyArrays> m_bodyArrays;
     
-    // Barnes-Hut specific
-    class BarnesHutTree {
-    public:
-        BarnesHutTree() = default;
-        ~BarnesHutTree() = default;
-        
-        void BuildTree(const std::vector<std::unique_ptr<Body>>& /*bodies*/) {
-            // Stub implementation
-        }
-        
-        glm::vec2 CalculateForce(const Body& /*body*/, float /*theta*/, float /*G*/) {
-            // Stub implementation - return zero force for now
-            return glm::vec2(0.0f);
-        }
-        
-        struct TreeStats {
-            int forceCalculations = 0;
-            int nodeCount = 0;
-        };
-        
-        TreeStats GetStats() const {
-            return TreeStats{};
-        }
-    };
+    // Barnes-Hut tree for force approximation
     std::unique_ptr<BarnesHutTree> m_barnesHutTree;
     
     // GPU resources (temporarily disabled)

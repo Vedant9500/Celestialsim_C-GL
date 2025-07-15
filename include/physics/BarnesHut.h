@@ -89,6 +89,11 @@ public:
     const TreeStats& GetStats() const { return m_stats; }
     
     /**
+     * @brief Reset force calculations counter to zero
+     */
+    void ResetForceCalculations() { m_stats.forceCalculations = 0; }
+    
+    /**
      * @brief Get root node for visualization
      */
     const QuadTreeNode* GetRoot() const { return m_root.get(); }
@@ -111,7 +116,7 @@ private:
     void CountNodes(const QuadTreeNode* node, TreeStats& stats, int depth = 0) const;
     
     // Constants
-    static constexpr float SOFTENING_LENGTH = 0.01f;
+    static constexpr float SOFTENING_LENGTH = 0.1f; // Increased for better stability and performance
     static constexpr float MIN_NODE_SIZE = 0.1f;
 };
 

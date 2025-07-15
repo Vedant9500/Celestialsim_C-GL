@@ -108,6 +108,15 @@ void UIManager::Render(const std::vector<std::unique_ptr<Body>>& bodies,
     if (m_showAboutWindow) {
         RenderAboutPanel();
     }
+    
+    if (m_showBarnesHutWindow) {
+        RenderBarnesHutPanel(bodies, physics);
+    }
+    
+    // Render Barnes-Hut tree visualization in the simulation view if enabled
+    if (m_visualizeBarnesHut && physics.GetStats().method == "Barnes-Hut") {
+        RenderBarnesHutVisualization(bodies, physics);
+    }
 }
 
 void UIManager::RenderMainMenuBar() {
@@ -169,6 +178,7 @@ void UIManager::RenderMainMenuBar() {
             ImGui::MenuItem("Statistics", nullptr, &m_showStatsWindow);
             ImGui::MenuItem("Body Properties", nullptr, &m_showBodyWindow);
             ImGui::MenuItem("Debug Info", nullptr, &m_showDebugWindow);
+            ImGui::MenuItem("Barnes-Hut Tree", nullptr, &m_showBarnesHutWindow);
             ImGui::EndMenu();
         }
         
@@ -630,4 +640,157 @@ float UIManager::CalculatePreviewRadius(int count, int pattern, float baseRadius
     return baseRadius * scaleFactor;
 }
 
+void UIManager::RenderBarnesHutPanel(const std::vector<std::unique_ptr<Body>>& bodies,
+                                  const PhysicsEngine& physics) {
+    // Position panel on the right side
+    float panelWidth = std::min(320.0f, m_windowWidth * 0.25f);
+    float panelHeight = m_windowHeight * 0.6f;
+    
+    ImGui::SetNextWindowPos(ImVec2(m_windowWidth - panelWidth - MARGIN, MARGIN), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight), ImGuiCond_FirstUseEver);
+    
+    if (!ImGui::Begin("Barnes-Hut Tree", &m_showBarnesHutWindow)) {
+        ImGui::End();
+        return;
+    }
+    
+    // Check if we're using Barnes-Hut
+    if (physics.GetStats().method != "Barnes-Hut") {
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), "Barnes-Hut not active");
+        ImGui::Text("Barnes-Hut will be used when:");
+        ImGui::BulletText("More than %d bodies", physics.GetConfig().maxBodiesForDirect);
+        ImGui::BulletText("Barnes-Hut is enabled in settings");
+        ImGui::End();
+        return;
+    }
+    
+    // Show Barnes-Hut statistics
+    ImGui::Text("Barnes-Hut Statistics");
+    ImGui::Separator();
+    
+    const auto& stats = physics.GetStats();
+    ImGui::Text("Force Calculations: %d", stats.forceCalculations);
+    ImGui::Text("Direct Method Would Need: %d", bodies.size() * bodies.size());
+    
+    if (bodies.size() > 0) {
+        float ratio = static_cast<float>(stats.forceCalculations) / (bodies.size() * bodies.size());
+        ImGui::Text("Efficiency: %.1f%% (%0.2fx faster)", 100.0f * (1.0f - ratio), 1.0f / std::max(ratio, 0.001f));
+    }
+    
+    ImGui::Text("Tree Building Time: %.2f ms", stats.barnesHutTime);
+    
+    // Visualization controls
+    ImGui::Separator();
+    ImGui::Text("Visualization");
+    ImGui::Checkbox("Show Barnes-Hut Tree", &m_visualizeBarnesHut);
+    
+    if (m_visualizeBarnesHut) {
+        // Use fixed values for now since we've inlined the visualization
+        ImGui::Text("Tree visualization enabled");
+        ImGui::Text("Using default visualization settings");
+    }
+    
+    // Barnes-Hut Parameters
+    ImGui::Separator();
+    ImGui::Text("Barnes-Hut Parameters");
+    
+    // Get the parameters from the physics engine (mutable config)
+    auto& config = const_cast<PhysicsEngine&>(physics).GetMutableConfig();
+    
+    // Theta parameter (approximation threshold)
+    float theta = config.barnesHutTheta;
+    if (ImGui::SliderFloat("Theta", &theta, 0.1f, 1.0f)) {
+        config.barnesHutTheta = theta;
+    }
+    ImGui::SameLine(); ShowHelpMarker("Lower values = higher accuracy but slower. Higher values = faster but less accurate.");
+    
+    // Softening parameter
+    float softening = config.softeningLength;
+    if (ImGui::SliderFloat("Softening", &softening, 0.01f, 1.0f)) {
+        config.softeningLength = softening;
+    }
+    ImGui::SameLine(); ShowHelpMarker("Higher values prevent numerical instability but reduce accuracy of close interactions.");
+    
+    ImGui::End();
+}
+
+void UIManager::RenderBarnesHutVisualization(const std::vector<std::unique_ptr<Body>>& bodies,
+                                           const PhysicsEngine& physics) {
+    // Skip if we don't have a draw list or the visualization is disabled
+    ImDrawList* drawList = ImGui::GetBackgroundDrawList();
+    if (!drawList || !m_visualizeBarnesHut) return;
+    
+    // Skip if Barnes-Hut is not active
+    if (physics.GetStats().method != "Barnes-Hut") return;
+    
+    // Get the Barnes-Hut tree root node from the physics engine
+    const auto* tree = physics.GetBarnesHutTree();
+    if (!tree) return;
+    
+    const auto* rootNode = tree->GetRoot();
+    if (!rootNode) return;
+    
+    // Constants for visualization
+    int maxDepthToShow = 5;  // Maximum tree depth to display
+    float treeNodeAlpha = 0.5f;  // Alpha transparency for tree nodes
+    ImU32 treeColor = IM_COL32(0, 255, 0, 128);  // Green for tree nodes
+    ImU32 treeCenterColor = IM_COL32(255, 0, 0, 192);  // Red for centers of mass
+    
+    // Function to recursively draw a node and its children
+    std::function<void(const nbody::QuadTreeNode*, int)> drawNode;
+    drawNode = [&](const nbody::QuadTreeNode* node, int depth) {
+        if (!node || depth > maxDepthToShow) return;
+        
+        // Get world coordinates
+        float worldCenterX = node->center.x;
+        float worldCenterY = node->center.y;
+        float worldSize = node->size;
+        
+        // Convert to screen coordinates
+        float screenScale = 10.0f;
+        float screenX = m_windowWidth / 2.0f + worldCenterX * screenScale;
+        float screenY = m_windowHeight / 2.0f - worldCenterY * screenScale;
+        float screenSize = worldSize * screenScale;
+        
+        // Calculate alpha based on depth
+        float alpha = treeNodeAlpha * (1.0f - 0.1f * depth);
+        ImU32 color = (treeColor & 0x00FFFFFF) | (static_cast<ImU32>(alpha * 255) << 24);
+        
+        // Draw node rectangle
+        drawList->AddRect(
+            ImVec2(screenX - screenSize/2, screenY - screenSize/2),
+            ImVec2(screenX + screenSize/2, screenY + screenSize/2),
+            color, 0.0f, 0, 1.0f
+        );
+        
+        // Draw center of mass if node has mass
+        if (node->totalMass > 0) {
+            float comX = m_windowWidth / 2.0f + node->centerOfMass.x * screenScale;
+            float comY = m_windowHeight / 2.0f - node->centerOfMass.y * screenScale;
+            
+            drawList->AddCircleFilled(
+                ImVec2(comX, comY),
+                3.0f,
+                treeCenterColor,
+                8
+            );
+        }
+        
+        // Draw children recursively
+        if (!node->isLeaf) {
+            for (int i = 0; i < 4; i++) {
+                if (node->children[i]) {
+                    drawNode(node->children[i].get(), depth + 1);
+                }
+            }
+        }
+    };
+    
+    // Start drawing from the root node
+    drawNode(rootNode, 0);
+}
+
+// Method has been consolidated into RenderBarnesHutVisualization
+
+// Moved this functionality into RenderBarnesHutVisualization for simplicity
 } // namespace nbody

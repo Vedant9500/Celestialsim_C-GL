@@ -20,7 +20,7 @@ static constexpr float MAX_FORCE = 10000.0f; // Maximum force to prevent instabi
 
 PhysicsEngine::PhysicsEngine() {
     m_bodyArrays = std::make_unique<BodyArrays>();
-    m_barnesHutTree = std::make_unique<BarnesHutTree>();
+    m_barnesHutTree = std::make_unique<BarnesHutTree>(); // Already in nbody namespace
 }
 
 PhysicsEngine::~PhysicsEngine() {
@@ -184,12 +184,26 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
     const float G = m_config.gravitationalConstant;
     const float theta = m_config.barnesHutTheta;
     
+    // Reset force calculation counter before starting
+    m_barnesHutTree->ResetForceCalculations();
+    
     std::cout << "Using G=" << G << ", theta=" << theta << std::endl;
     
     // Calculate forces using Barnes-Hut approximation
-    // Use sequential execution to avoid race conditions with stats
-    for (auto& body : bodies) {
+    // Use parallel execution for better performance with many bodies
+    #pragma omp parallel for schedule(dynamic, 32)
+    for (int i = 0; i < static_cast<int>(bodies.size()); ++i) {
+        auto& body = bodies[i];
         if (body->IsFixed()) continue;
+        
+        // Add debugging for the first few bodies
+        if (i < 20) {
+            std::cout << "Force calc for body at (" << body->GetPosition().x << "," 
+                     << body->GetPosition().y << "), body mass=" << body->GetMass() 
+                     << ", tree root mass=" << m_barnesHutTree->GetRoot()->totalMass 
+                     << ", tree center=(" << m_barnesHutTree->GetRoot()->centerOfMass.x 
+                     << "," << m_barnesHutTree->GetRoot()->centerOfMass.y << ")" << std::endl;
+        }
         
         glm::vec2 force = m_barnesHutTree->CalculateForce(*body, theta, G);
         body->ApplyForce(force);

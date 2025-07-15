@@ -18,49 +18,79 @@ void BarnesHutTree::BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) 
     
     m_stats = TreeStats();
     
+    // Get bounds efficiently
     glm::vec2 center;
     float size;
     CalculateBounds(bodies, center, size);
     
-    // Debug output
-    std::cout << "Building Barnes-Hut tree for " << bodies.size() << " bodies" << std::endl;
-    std::cout << "Tree bounds: center=(" << center.x << "," << center.y << "), size=" << size << std::endl;
+    // For very large simulations, limit the debug output
+    static int frameCount = 0;
+    frameCount++;
+    if (frameCount % 60 == 0) { // Only print every 60 frames
+        std::cout << "Building Barnes-Hut tree for " << bodies.size() << " bodies" << std::endl;
+        std::cout << "Tree bounds: center=(" << center.x << "," << center.y << "), size=" << size << std::endl;
+    }
     
-    m_root = std::make_unique<QuadTreeNode>();
+    // Reset or create root node
+    if (!m_root) {
+        m_root = std::make_unique<QuadTreeNode>();
+    }
     m_root->center = center;
     m_root->size = size;
+    m_root->totalMass = 0.0f;
+    m_root->centerOfMass = glm::vec2(0.0f);
+    m_root->body = nullptr;
+    m_root->isLeaf = true;
+    // Clear children
+    for (auto& child : m_root->children) {
+        child.reset();
+    }
     
     int bodiesInserted = 0;
+    int bodiesOutsideBounds = 0;
+    
+    // Insert bodies into the tree
     for (const auto& body : bodies) {
         // Ensure body is within the root bounds before inserting
         if (m_root->Contains(body->GetPosition())) {
             InsertBody(m_root.get(), body.get());
             bodiesInserted++;
         } else {
-            std::cout << "Warning: Body at (" << body->GetPosition().x << "," << body->GetPosition().y << ") outside bounds!" << std::endl;
+            bodiesOutsideBounds++;
         }
     }
     
-    std::cout << "Inserted " << bodiesInserted << "/" << bodies.size() << " bodies into tree" << std::endl;
+    // Print warnings only occasionally to avoid console spam
+    if (bodiesOutsideBounds > 0 && frameCount % 60 == 0) {
+        std::cout << "Warning: " << bodiesOutsideBounds << " bodies outside tree bounds!" << std::endl;
+    }
     
+    // Calculate center of mass for each node
     UpdateMassAndCenter(m_root.get());
     
-    CountNodes(m_root.get(), m_stats);
-    std::cout << "Tree stats: " << m_stats.totalNodes << " nodes, " << m_stats.leafNodes << " leaves, max depth " << m_stats.maxDepth << std::endl;
+    // Count nodes for stats (only occasionally to improve performance)
+    if (frameCount % 60 == 0) {
+        CountNodes(m_root.get(), m_stats);
+        std::cout << "Tree stats: " << m_stats.totalNodes << " nodes, " 
+                  << m_stats.leafNodes << " leaves, max depth " << m_stats.maxDepth << std::endl;
+    }
 }
 
 glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G) const {
     if (!m_root) {
         return glm::vec2(0.0f);
     }
-    m_stats.forceCalculations = 0;
+    
+    // Don't reset force calculation counter here - let it accumulate for all bodies
+    int initialCount = m_stats.forceCalculations;
     glm::vec2 force = CalculateForceIterative(body, theta, G);
     
     // Debug output for first few bodies
     static int debugCount = 0;
     if (debugCount < 3) {
         std::cout << "Force on body at (" << body.GetPosition().x << "," << body.GetPosition().y 
-                  << ") = (" << force.x << "," << force.y << "), " << m_stats.forceCalculations << " calculations" << std::endl;
+                  << ") = (" << force.x << "," << force.y << "), added " 
+                  << (m_stats.forceCalculations - initialCount) << " calculations" << std::endl;
         debugCount++;
     }
     
@@ -158,6 +188,7 @@ void BarnesHutTree::UpdateMassAndCenter(QuadTreeNode* node) {
 glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, float G) const {
     glm::vec2 totalForce(0.0f);
     if (!m_root || m_root->totalMass <= 0.0f) {
+        std::cout << "Warning: Empty or massless root node in CalculateForceIterative" << std::endl;
         return totalForce;
     }
 
@@ -165,7 +196,13 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
     stack.push_back(m_root.get());
     
     int nodeVisits = 0;
-    int forceComputations = 0;
+    int nodesTotalMass = 0;
+
+    std::cout << "Force calc for body at (" << body.GetPosition().x << "," << body.GetPosition().y 
+              << "), body mass=" << body.GetMass() 
+              << ", tree root mass=" << m_root->totalMass 
+              << ", tree center=(" << m_root->center.x << "," << m_root->center.y << ")"
+              << std::endl;
 
     while (!stack.empty()) {
         const QuadTreeNode* node = stack.back();
@@ -176,61 +213,76 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
             continue;
         }
 
-        glm::vec2 r = node->centerOfMass - body.GetPosition();
-        float distanceSq = glm::dot(r, r);
-        float nodeWidthSq = node->size * node->size;
+        nodesTotalMass++;
+
+        // Vector FROM body's position TO node's center of mass
+        // This is the direction the force should pull the body
+        glm::vec2 bodyToNode = node->centerOfMass - body.GetPosition();
+        float distanceSq = glm::dot(bodyToNode, bodyToNode);
         
-        // CORRECTED LOGIC: The core Barnes-Hut approximation test (s/d < theta)
-        // REF uses: s_squared < theta * dist_squared (where theta = 0.5*0.5 = 0.25)
-        if (nodeWidthSq < theta * distanceSq) {
-            // Node is far enough away, treat it as a single point mass.
-        } else if (node->isLeaf) {
-            // Node is a leaf, but it's too close. We must do a direct calculation.
-            // We must also ensure it's not the body calculating force on itself.
-            if (node->body == &body) {
-                continue; // Skip self-interaction
-            }
-            // CRITICAL: Also check if leaf is empty
-            if (node->body == nullptr) {
-                continue; // Skip empty leaf
-            }
-        } else {
-            // Node is an internal node and it's too close.
-            // Push its children onto the stack to investigate further.
-            for (int i = 0; i < 4; ++i) {
+        // Skip self-interactions
+        if (node->isLeaf && node->body == &body) {
+            continue;
+        }
+        
+        // Barnes-Hut approximation: More aggressive approximation for better performance
+        // Standard is s/d < theta, which equals s²/d² < theta²
+        // Higher theta (0.5-1.0) makes simulation faster but less accurate
+        float sizeToDistRatio = node->size / (std::sqrt(distanceSq) + 1e-10f);
+        
+        // If s/d is small enough, use approximation (Rust implementation uses theta=1.0)
+        if (sizeToDistRatio < theta) {
+            // Node is far enough away, use approximation
+            if (distanceSq <= 0.0f) continue; // Avoid division by zero
+            
+            // Add softening to prevent excessive forces at small distances
+            float softDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            
+            // Calculate force using optimized formula: F = G * m1 * m2 / r^3 * direction
+            // This avoids normalizing the direction vector separately
+            float invDist = 1.0f / std::sqrt(softDistSq);
+            float invDistCubed = invDist * invDist * invDist;
+            
+            // G * mass * direction / r^3
+            float forceFactor = G * node->totalMass * invDistCubed;
+            
+            // Apply force: direction * magnitude (already combined in forceFactor)
+            totalForce += bodyToNode * forceFactor;
+            m_stats.forceCalculations++;
+        } 
+        else if (node->isLeaf) {
+            // Too close for approximation, but it's a leaf node
+            // Skip empty leaves
+            if (!node->body) continue;
+            
+            if (distanceSq <= 0.0f) continue; // Avoid division by zero
+            
+            // Direct calculation with the same optimization
+            float softDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            float invDist = 1.0f / std::sqrt(softDistSq);
+            float invDistCubed = invDist * invDist * invDist;
+            float forceFactor = G * node->totalMass * invDistCubed;
+            
+            totalForce += bodyToNode * forceFactor;
+            m_stats.forceCalculations++;
+        } 
+        else {
+            // Internal node that's too close for approximation, descend to children
+            // Push children in reverse order for better cache locality (closer nodes first)
+            for (int i = 3; i >= 0; --i) {
                 if (node->children[i]) {
                     stack.push_back(node->children[i].get());
                 }
-            }
-            continue; // Skip the force calculation for this internal node, as we use its children.
-        }
-
-        // --- Perform Force Calculation ---
-        // This block is reached if:
-        // 1. The node was far enough away (approximated).
-        // 2. The node was a close leaf (direct calculation, not self).
-        
-        // REF: Check if distance is greater than 0 and node is occupied
-        if (distanceSq > 0.0f && node->totalMass > 0.0f) {
-            // Add softening to prevent extreme forces when particles are very close.
-            float effectiveDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
-            
-            if (effectiveDistSq > 1e-12f) { // Avoid division by zero
-                // REF-style force calculation: F = G * m * r_vec / (dist^2 + softening^2)^1.5
-                // CRITICAL FIX: Use vector from particle to center of mass (attractive force)
-                float invDist = 1.0f / std::pow(effectiveDistSq, 1.5f);
-                totalForce += r * (G * node->totalMass * invDist);
-                forceComputations++;
-                m_stats.forceCalculations++;
             }
         }
     }
     
     // Debug output for first few bodies
     static int bodyCount = 0;
-    if (bodyCount < 5) {
+    if (bodyCount < 3) {
         std::cout << "Body " << bodyCount << ": visits=" << nodeVisits 
-                  << ", computations=" << forceComputations 
+                  << ", nodes with mass=" << nodesTotalMass
+                  << ", computations=" << m_stats.forceCalculations
                   << ", force=(" << totalForce.x << "," << totalForce.y << ")" << std::endl;
         bodyCount++;
     }
@@ -246,24 +298,38 @@ void BarnesHutTree::CalculateBounds(const std::vector<std::unique_ptr<Body>>& bo
         return;
     }
     
-    glm::vec2 minPos = bodies[0]->GetPosition();
-    glm::vec2 maxPos = bodies[0]->GetPosition();
+    // Start with a very large/small bounding box
+    glm::vec2 minPos(std::numeric_limits<float>::max());
+    glm::vec2 maxPos(std::numeric_limits<float>::lowest());
     
-    for (size_t i = 1; i < bodies.size(); ++i) {
-        const glm::vec2& pos = bodies[i]->GetPosition();
+    // Find the actual bounds of all bodies
+    for (const auto& body : bodies) {
+        const glm::vec2& pos = body->GetPosition();
         minPos.x = std::min(minPos.x, pos.x);
         minPos.y = std::min(minPos.y, pos.y);
         maxPos.x = std::max(maxPos.x, pos.x);
         maxPos.y = std::max(maxPos.y, pos.y);
     }
     
+    // Calculate center and size
     center = (minPos + maxPos) * 0.5f;
-    float sizeX = maxPos.x - minPos.x;
-    float sizeY = maxPos.y - minPos.y;
+    
+    // Ensure we have some minimum size even if all bodies are at the same position
+    float sizeX = std::max(maxPos.x - minPos.x, 0.1f);
+    float sizeY = std::max(maxPos.y - minPos.y, 0.1f);
     size = std::max(sizeX, sizeY);
     
-    size *= 1.05f; // Add 5% padding to prevent bodies from falling on the edge
+    // Add smaller padding (20%) to ensure bodies don't fall outside the bounds
+    // but keep the tree size reasonable for better approximation
+    size *= 1.2f;
+    
+    // Ensure minimum size to avoid numerical issues
     size = std::max(size, MIN_NODE_SIZE);
+    
+    std::cout << "Bounds: min=(" << minPos.x << "," << minPos.y 
+              << "), max=(" << maxPos.x << "," << maxPos.y 
+              << "), center=(" << center.x << "," << center.y 
+              << "), size=" << size << std::endl;
 }
 
 void BarnesHutTree::CountNodes(const QuadTreeNode* node, TreeStats& stats, int depth) const {

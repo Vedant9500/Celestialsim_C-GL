@@ -49,6 +49,14 @@ public:
                const Body* selectedBody);
 
     /**
+     * @brief Render Barnes-Hut tree visualization
+     * @param bodies Vector of bodies
+     * @param physics Physics engine reference
+     */
+    void RenderBarnesHutVisualization(const std::vector<std::unique_ptr<Body>>& bodies,
+                                     const PhysicsEngine& physics);
+
+    /**
      * @brief Handle window resize
      * @param width New width
      * @param height New height
@@ -75,6 +83,7 @@ public:
     bool IsShowingGrid() const { return m_showGrid; }
     bool IsShowingForces() const { return m_showForces; }
     bool IsShowingQuadTree() const { return m_showQuadTree; }
+    bool IsShowingBarnesHut() const { return m_visualizeBarnesHut; }
     
     float GetNewBodyMass() const { return m_newBodyMass; }
     glm::vec3 GetNewBodyColor() const { return m_newBodyColor; }
@@ -135,6 +144,7 @@ private:
     bool m_showBodyWindow = true;
     bool m_showDebugWindow = false;
     bool m_showAboutWindow = false;
+    bool m_showBarnesHutWindow = false;
     
     // Simulation controls
     bool m_orbitMode = false;
@@ -142,6 +152,11 @@ private:
     bool m_showGrid = false;
     bool m_showForces = false;
     bool m_showQuadTree = false;
+    bool m_visualizeBarnesHut = false;
+    int m_maxTreeDepthToShow = 5;
+    float m_treeNodeAlpha = 0.5f;
+    ImU32 m_treeColor = IM_COL32(0, 255, 0, 128);
+    ImU32 m_treeCenterColor = IM_COL32(255, 0, 0, 192);
     
     // New body settings
     float m_newBodyMass = 50.0f;
@@ -195,6 +210,8 @@ private:
     void RenderBodyPanel(const Body* selectedBody);
     void RenderDebugPanel();
     void RenderAboutPanel();
+    void RenderBarnesHutPanel(const std::vector<std::unique_ptr<Body>>& bodies,
+                             const PhysicsEngine& physics);
     
     // Utility functions
     void ShowPhysicsStats(const PhysicsStats& stats);
