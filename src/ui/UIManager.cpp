@@ -196,11 +196,12 @@ void UIManager::RenderControlPanel() {
     float panelWidth = std::min(320.0f, m_windowWidth * 0.25f);
     float panelHeight = m_windowHeight - 2 * MARGIN;
     
-    ImGui::SetNextWindowPos(ImVec2(MARGIN, MARGIN), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight), ImGuiCond_FirstUseEver);
+    // Always position at the left edge
+    ImGui::SetNextWindowPos(ImVec2(MARGIN, MARGIN));
+    ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight));
     
-    // Use minimal flags to allow full interaction
-    ImGuiWindowFlags flags = 0;
+    // Use flags to prevent moving but allow resizing
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove;
     
     if (!ImGui::Begin("Simulation Controls", &m_showControlsWindow, flags)) {
         ImGui::End();
@@ -393,12 +394,13 @@ void UIManager::RenderStatsPanel(const std::vector<std::unique_ptr<Body>>& bodie
                                 const Renderer& renderer) {
     // Position panel on the right side with responsive sizing
     float panelWidth = std::min(300.0f, m_windowWidth * 0.25f);
-    float panelHeight = m_windowHeight * 0.6f;
+    float panelHeight = m_windowHeight * 0.45f;
     
-    ImGui::SetNextWindowPos(ImVec2(m_windowWidth - panelWidth - MARGIN, MARGIN), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight), ImGuiCond_FirstUseEver);
+    // Always position at the top-right corner
+    ImGui::SetNextWindowPos(ImVec2(m_windowWidth - panelWidth - MARGIN, MARGIN));
+    ImGui::SetNextWindowSize(ImVec2(panelWidth, panelHeight));
     
-    ImGuiWindowFlags flags = 0;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove;
     
     if (!ImGui::Begin("Statistics", &m_showStatsWindow, flags)) {
         ImGui::End();

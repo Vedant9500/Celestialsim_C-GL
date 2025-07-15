@@ -134,14 +134,19 @@ public:
     
 private:
     // Window state
+    // GLFWwindow* m_window = nullptr;
+    // int m_monitorWidth = 0;
+    // int m_monitorHeight = 0;
     int m_windowWidth = 1200;
     int m_windowHeight = 800;
+
+
     
     // UI state
     bool m_showMainWindow = true;
     bool m_showStatsWindow = true;
     bool m_showControlsWindow = true;
-    bool m_showBodyWindow = true;
+    bool m_showBodyWindow = false; // Body property panel hidden by default
     bool m_showDebugWindow = false;
     bool m_showAboutWindow = false;
     bool m_showBarnesHutWindow = false;
