@@ -8,6 +8,7 @@
 #include <vector>
 #include <memory>
 #include <unordered_map>
+#include <algorithm> // For std::max
 #include <chrono>
 
 namespace nbody {
@@ -21,8 +22,8 @@ struct QuadTreeNode;
  */
 struct Camera {
     glm::vec2 position{0.0f};
-    float zoom = 1.0f;
-    float targetZoom = 1.0f;
+    float zoom = 0.001f; // Set to minimum zoom to see everything
+    float targetZoom = 0.001f; // Set target zoom to minimum as well
     float zoomSpeed = 0.1f;
     
     glm::mat4 GetViewMatrix() const {
@@ -38,6 +39,7 @@ struct Camera {
     
     void Update(float /*deltaTime*/) {
         zoom += (targetZoom - zoom) * zoomSpeed;
+        zoom = std::max(0.0001f, zoom); // Ensure zoom never goes below minimum
     }
 };
 
@@ -126,9 +128,12 @@ public:
     const Camera& GetCamera() const { return m_camera; }
     
     void SetCameraPosition(const glm::vec2& position) { m_camera.position = position; }
-    void SetCameraZoom(float zoom) { m_camera.targetZoom = zoom; }
+    void SetCameraZoom(float zoom) { m_camera.targetZoom = std::max(0.0001f, zoom); } // Ensure minimum zoom
     void ZoomIn(float factor = 1.2f) { m_camera.targetZoom *= factor; }
-    void ZoomOut(float factor = 1.2f) { m_camera.targetZoom /= factor; }
+    void ZoomOut(float factor = 1.2f) { 
+        m_camera.targetZoom /= factor;
+        m_camera.targetZoom = std::max(0.0001f, m_camera.targetZoom); // Prevent zoom from going too low
+    }
     void PanCamera(const glm::vec2& delta) { m_camera.position += delta; }
     
     // Coordinate conversion

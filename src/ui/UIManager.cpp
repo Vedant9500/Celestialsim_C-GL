@@ -548,7 +548,7 @@ void UIManager::RenderDebugPanel() {
     
     if (ImGui::Button("Reset Camera##debug")) {
         m_cameraPosition = glm::vec2(0.0f);
-        m_cameraZoom = 1.0f;
+        m_cameraZoom = 0.0f;
     }
     
     ImGui::End();

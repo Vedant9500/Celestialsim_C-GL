@@ -189,7 +189,7 @@ private:
     bool m_gpuAvailable = false; // Track GPU availability
     
     // Rendering settings
-    float m_cameraZoom = 1.0f;
+    float m_cameraZoom = 0.0f;
     glm::vec2 m_cameraPosition{0.0f};
     
     // Performance tracking

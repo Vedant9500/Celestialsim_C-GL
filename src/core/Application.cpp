@@ -148,7 +148,7 @@ bool Application::Initialize() {
     
     m_ui->OnResetCamera = [this]() {
         m_renderer->SetCameraPosition(glm::vec2(0.0f));
-        m_renderer->SetCameraZoom(1.0f);
+        m_renderer->SetCameraZoom(0.001f); // Set to minimum zoom to see everything
     };
     
     m_ui->OnFitAllBodies = [this]() {
@@ -179,12 +179,12 @@ bool Application::Initialize() {
     };
     
     // Camera callbacks (we'll need to add these to UIManager)
-    // m_ui->OnResetCamera = [this]() { m_renderer->GetCamera().position = glm::vec2(0.0f); m_renderer->GetCamera().targetZoom = 1.0f; };
+    // m_ui->OnResetCamera = [this]() { m_renderer->GetCamera().position = glm::vec2(0.0f); m_renderer->GetCamera().targetZoom = 0.001f; };
     // m_ui->OnFitAllBodies = [this]() { m_renderer->FitAllBodies(m_bodies); };
     // m_ui->OnCenterOnBody = [this](const Body* body) { m_renderer->CenterOnBody(body); };
 
     // Load default preset
-    CreateSolarSystem();
+    CreateRandomCluster(100);
 
     m_lastFrameTime = std::chrono::high_resolution_clock::now();
     
