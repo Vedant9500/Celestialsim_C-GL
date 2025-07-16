@@ -257,43 +257,67 @@ void UIManager::RenderControlPanel() {
     
     // Physics parameters with change detection
     if (ImGui::CollapsingHeader("Physics Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::SliderFloat("Gravity", &m_gravitationalConstant, 0.0f, 50.0f, "%.1f")) {
-            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
-        }
-        if (ImGui::SliderFloat("Time Step", &m_timeStep, 0.001f, 0.05f, "%.3f")) {
-            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
-        }
-        if (ImGui::SliderFloat("Time Scale", &m_timeScale, 0.0f, 5.0f, "%.2f")) {
-            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
-        }
-        ImGui::SameLine(); ShowHelpMarker("Speed multiplier for the simulation");
+        // Reset all button
+        ShowResetButton("physics_reset", [this]() { ResetPhysicsParameters(); });
+        ImGui::Separator();
         
-        if (ImGui::SliderFloat("Softening", &m_softeningLength, 0.1f, 5.0f, "%.2f")) {
+        if (SliderFloatWithInput("Gravity", &m_gravitationalConstant, 0.0f, 50.0f, 
+                                DEFAULT_GRAVITATIONAL_CONSTANT, "%.1f", 
+                                "Gravitational constant - affects force strength")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
         
-        if (ImGui::Checkbox("Barnes-Hut", &m_useBarnesHut)) {
+        if (SliderFloatWithInput("Time Step", &m_timeStep, 0.001f, 0.05f, 
+                                DEFAULT_TIME_STEP, "%.3f", 
+                                "Integration time step - smaller values are more accurate")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
+        
+        if (SliderFloatWithInput("Time Scale", &m_timeScale, 0.0f, 5.0f, 
+                                DEFAULT_TIME_SCALE, "%.2f", 
+                                "Speed multiplier for the simulation")) {
+            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
+        }
+        
+        if (SliderFloatWithInput("Softening", &m_softeningLength, 0.1f, 5.0f, 
+                                DEFAULT_SOFTENING_LENGTH, "%.2f", 
+                                "Prevents singularities in force calculations")) {
+            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
+        }
+        
+        if (CheckboxWithReset("Barnes-Hut", &m_useBarnesHut, DEFAULT_USE_BARNES_HUT, 
+                             "Use Barnes-Hut tree algorithm for better performance")) {
+            if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
+        }
+        
         if (m_useBarnesHut) {
-            if (ImGui::SliderFloat("Theta", &m_barnesHutTheta, 0.1f, 2.0f, "%.2f")) {
+            ImGui::Indent();
+            if (SliderFloatWithInput("Theta", &m_barnesHutTheta, 0.1f, 2.0f, 
+                                    DEFAULT_BARNES_HUT_THETA, "%.2f", 
+                                    "Lower theta = more accurate but slower")) {
                 if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
             }
-            ImGui::SameLine(); ShowHelpMarker("Lower theta = more accurate but slower");
+            ImGui::Unindent();
         }
         
-        if (ImGui::Checkbox("Collisions", &m_enableCollisions)) {
+        if (CheckboxWithReset("Collisions", &m_enableCollisions, DEFAULT_ENABLE_COLLISIONS, 
+                             "Enable collision detection and response")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
+        
         if (m_enableCollisions) {
-            if (ImGui::SliderFloat("Restitution", &m_restitution, 0.0f, 1.0f, "%.2f")) {
+            ImGui::Indent();
+            if (SliderFloatWithInput("Restitution", &m_restitution, 0.0f, 1.0f, 
+                                    DEFAULT_RESTITUTION, "%.2f", 
+                                    "0 = perfectly inelastic, 1 = perfectly elastic")) {
                 if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
             }
-            ImGui::SameLine(); ShowHelpMarker("0 = perfectly inelastic, 1 = perfectly elastic");
+            ImGui::Unindent();
         }
         
         ImGui::BeginDisabled(!m_gpuAvailable);
-        if (ImGui::Checkbox("GPU Compute", &m_useGPU)) {
+        if (CheckboxWithReset("GPU Compute", &m_useGPU, DEFAULT_USE_GPU, 
+                             "Use GPU acceleration for force calculations")) {
             if (OnPhysicsParameterChanged) OnPhysicsParameterChanged();
         }
         ImGui::EndDisabled();
@@ -332,7 +356,7 @@ void UIManager::RenderControlPanel() {
         ImGui::Checkbox("Orbit Mode", &m_orbitMode);
         ShowHelpMarker("New bodies will be placed in orbit around nearest body");
         
-        ImGui::SliderFloat("Mass", &m_newBodyMass, 1.0f, 1000.0f, "%.1f");
+        SliderFloatWithInput("Mass", &m_newBodyMass, 1.0f, 1000.0f, DEFAULT_NEW_BODY_MASS, "%.1f");
         
         float colorArray[3] = {m_newBodyColor.x, m_newBodyColor.y, m_newBodyColor.z};
         if (ImGui::ColorEdit3("Color", colorArray)) {
@@ -340,8 +364,8 @@ void UIManager::RenderControlPanel() {
         }
         
         if (!m_orbitMode) {
-            ImGui::SliderFloat("Velocity X", &m_newBodyVelocity.x, -50.0f, 50.0f, "%.2f");
-            ImGui::SliderFloat("Velocity Y", &m_newBodyVelocity.y, -50.0f, 50.0f, "%.2f");
+            SliderFloatWithInput("Velocity X", &m_newBodyVelocity.x, -50.0f, 50.0f, 0.0f, "%.2f");
+            SliderFloatWithInput("Velocity Y", &m_newBodyVelocity.y, -50.0f, 50.0f, 0.0f, "%.2f");
         }
         
         ImGui::Text("Controls:");
@@ -354,11 +378,20 @@ void UIManager::RenderControlPanel() {
     
     // Quick spawn N bodies
     if (ImGui::CollapsingHeader("Quick Spawn", ImGuiTreeNodeFlags_DefaultOpen)) {
+        // Reset button for spawn parameters
+        if (ImGui::Button("Reset Spawn Params", ImVec2(-1, 0))) {
+            m_spawnCount = DEFAULT_SPAWN_COUNT;
+            m_spawnRadius = DEFAULT_SPAWN_RADIUS;
+            m_spawnMass = DEFAULT_SPAWN_MASS;
+            m_spawnSpeed = DEFAULT_SPAWN_SPEED;
+            m_spawnPattern = 0; // Random
+        }
+        
         ImGui::InputInt("Number of Bodies", &m_spawnCount, 10, 100);
         m_spawnCount = std::max(1, std::min(m_spawnCount, 100000)); // Limit to reasonable range
         
-        ImGui::SliderFloat("Base Spawn Radius", &m_spawnRadius, 5.0f, 50.0f, "%.1f");
-        ImGui::SameLine(); ShowHelpMarker("Base radius - will be scaled automatically for large body counts");
+        SliderFloatWithInput("Base Spawn Radius", &m_spawnRadius, 5.0f, 50.0f, DEFAULT_SPAWN_RADIUS, "%.1f",
+                           "Base radius - will be scaled automatically for large body counts");
         
         // Show calculated dynamic radius for large counts
         if (m_spawnCount > 100) {
@@ -371,9 +404,9 @@ void UIManager::RenderControlPanel() {
             ImGui::SameLine(); ShowHelpMarker(helpText);
         }
         
-        ImGui::SliderFloat("Spawn Mass", &m_spawnMass, 0.1f, 10.0f, "%.2f");
-        ImGui::SliderFloat("Initial Speed", &m_spawnSpeed, 0.0f, 20.0f, "%.1f");
-        ImGui::SameLine(); ShowHelpMarker("Random velocity magnitude for spawned bodies");
+        SliderFloatWithInput("Spawn Mass", &m_spawnMass, 0.1f, 10.0f, DEFAULT_SPAWN_MASS, "%.2f");
+        SliderFloatWithInput("Initial Speed", &m_spawnSpeed, 0.0f, 20.0f, DEFAULT_SPAWN_SPEED, "%.1f",
+                           "Random velocity magnitude for spawned bodies");
         
         const char* spawnTypes[] = { "Random", "Circle", "Grid", "Spiral" };
         ImGui::Combo("Pattern", &m_spawnPattern, spawnTypes, 4);
@@ -829,4 +862,115 @@ void UIManager::RenderBarnesHutVisualization(const std::vector<std::unique_ptr<B
 // Method has been consolidated into RenderBarnesHutVisualization
 
 // Moved this functionality into RenderBarnesHutVisualization for simplicity
+
+void UIManager::ShowTooltip(const char* text) {
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", text);
+    }
+}
+
+bool UIManager::SliderFloatWithInput(const char* label, float* value, float minVal, float maxVal, 
+                                    float defaultVal, const char* format, const char* helpText) {
+    bool changed = false;
+    
+    // Create unique IDs for the controls
+    ImGui::PushID(label);
+    
+    // Calculate layout widths
+    float availableWidth = ImGui::GetContentRegionAvail().x;
+    float buttonWidth = 50.0f;
+    float inputWidth = 80.0f;
+    float sliderWidth = availableWidth - buttonWidth - inputWidth - ImGui::GetStyle().ItemSpacing.x * 2;
+    
+    // Slider
+    ImGui::SetNextItemWidth(sliderWidth);
+    if (ImGui::SliderFloat("##slider", value, minVal, maxVal, format)) {
+        changed = true;
+    }
+    
+    // Input field
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(inputWidth);
+    if (ImGui::InputFloat("##input", value, 0.0f, 0.0f, format)) {
+        // Clamp to valid range
+        *value = std::max(minVal, std::min(maxVal, *value));
+        changed = true;
+    }
+    
+    // Reset button
+    ImGui::SameLine();
+    if (ImGui::Button("Reset", ImVec2(buttonWidth, 0))) {
+        *value = defaultVal;
+        changed = true;
+    }
+    
+    // Label and help
+    ImGui::SameLine();
+    ImGui::Text("%s", label);
+    
+    if (helpText) {
+        ImGui::SameLine();
+        ShowHelpMarker(helpText);
+    }
+    
+    ImGui::PopID();
+    return changed;
+}
+
+bool UIManager::CheckboxWithReset(const char* label, bool* value, bool defaultVal, const char* helpText) {
+    bool changed = false;
+    
+    ImGui::PushID(label);
+    
+    // Checkbox
+    if (ImGui::Checkbox("##checkbox", value)) {
+        changed = true;
+    }
+    
+    // Reset button
+    ImGui::SameLine();
+    if (ImGui::Button("Reset", ImVec2(50.0f, 0))) {
+        *value = defaultVal;
+        changed = true;
+    }
+    
+    // Label and help
+    ImGui::SameLine();
+    ImGui::Text("%s", label);
+    
+    if (helpText) {
+        ImGui::SameLine();
+        ShowHelpMarker(helpText);
+    }
+    
+    ImGui::PopID();
+    return changed;
+}
+
+void UIManager::ShowResetButton(const char* id, const std::function<void()>& resetCallback) {
+    ImGui::PushID(id);
+    if (ImGui::Button("Reset All Parameters", ImVec2(-1, 0))) {
+        if (resetCallback) {
+            resetCallback();
+        }
+    }
+    ImGui::PopID();
+}
+
+void UIManager::ResetPhysicsParameters() {
+    m_gravitationalConstant = DEFAULT_GRAVITATIONAL_CONSTANT;
+    m_timeStep = DEFAULT_TIME_STEP;
+    m_timeScale = DEFAULT_TIME_SCALE;
+    m_softeningLength = DEFAULT_SOFTENING_LENGTH;
+    m_useBarnesHut = DEFAULT_USE_BARNES_HUT;
+    m_barnesHutTheta = DEFAULT_BARNES_HUT_THETA;
+    m_enableCollisions = DEFAULT_ENABLE_COLLISIONS;
+    m_restitution = DEFAULT_RESTITUTION;
+    m_useGPU = DEFAULT_USE_GPU;
+    
+    // Trigger callback to update physics engine
+    if (OnPhysicsParameterChanged) {
+        OnPhysicsParameterChanged();
+    }
+}
 } // namespace nbody

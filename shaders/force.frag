@@ -3,5 +3,6 @@
 out vec4 FragColor;
 
 void main() {
-    FragColor = vec4(1.0, 0.5, 0.0, 0.7); // Orange force vectors
+    // Cyan/light blue with good transparency for velocity vectors
+    FragColor = vec4(0.2, 0.8, 1.0, 0.7);
 }

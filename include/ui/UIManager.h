@@ -245,6 +245,13 @@ private:
     void ShowHelpMarker(const char* desc);
     void ShowTooltip(const char* text);
     
+    // Enhanced UI controls
+    bool SliderFloatWithInput(const char* label, float* value, float minVal, float maxVal, 
+                             float defaultVal, const char* format = "%.3f", const char* helpText = nullptr);
+    bool CheckboxWithReset(const char* label, bool* value, bool defaultVal, const char* helpText = nullptr);
+    void ShowResetButton(const char* id, const std::function<void()>& resetCallback);
+    void ResetPhysicsParameters();
+    
     // Spawn preview calculation
     float CalculatePreviewRadius(int count, int pattern, float baseRadius);
     
@@ -256,6 +263,24 @@ private:
     static constexpr float PANEL_WIDTH = 300.0f;
     static constexpr float PANEL_HEIGHT = 200.0f;
     static constexpr float MARGIN = 10.0f;
+    
+    // Default physics parameter values (from PhysicsConfig)
+    static constexpr float DEFAULT_GRAVITATIONAL_CONSTANT = 1.0f;
+    static constexpr float DEFAULT_TIME_STEP = 0.016f;
+    static constexpr float DEFAULT_TIME_SCALE = 1.0f;
+    static constexpr float DEFAULT_SOFTENING_LENGTH = 0.1f;
+    static constexpr bool DEFAULT_USE_BARNES_HUT = true;
+    static constexpr float DEFAULT_BARNES_HUT_THETA = 0.7f;
+    static constexpr bool DEFAULT_ENABLE_COLLISIONS = true;
+    static constexpr float DEFAULT_RESTITUTION = 0.8f;
+    static constexpr bool DEFAULT_USE_GPU = false;
+    
+    // Default body creation values
+    static constexpr float DEFAULT_NEW_BODY_MASS = 10.0f;
+    static constexpr float DEFAULT_SPAWN_RADIUS = 20.0f;
+    static constexpr float DEFAULT_SPAWN_MASS = 1.0f;
+    static constexpr float DEFAULT_SPAWN_SPEED = 5.0f;
+    static constexpr int DEFAULT_SPAWN_COUNT = 100;
 };
 
 } // namespace nbody

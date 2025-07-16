@@ -777,33 +777,64 @@ void Renderer::UpdateGridVertices() {
 void Renderer::UpdateForceVertices(const std::vector<std::unique_ptr<Body>>& bodies, const PhysicsEngine& physics) {
     m_forceVertices.clear();
     
+    // Calculate statistics for better scaling
+    float maxSpeed = 0.0f;
+    float avgSpeed = 0.0f;
+    int movingBodies = 0;
+    
+    for (const auto& body : bodies) {
+        float speed = glm::length(body->GetVelocity());
+        if (speed > 0.01f) {
+            maxSpeed = std::max(maxSpeed, speed);
+            avgSpeed += speed;
+            movingBodies++;
+        }
+    }
+    
+    if (movingBodies == 0 || maxSpeed < 0.001f) return;
+    avgSpeed /= movingBodies;
+    
+    // Base vector length that looks good at different zoom levels
+    float baseLength = 3.0f / m_camera.zoom;
+    float minVisibleSpeed = avgSpeed * 0.1f; // Only show vectors for bodies moving faster than 10% of average
+    
     for (const auto& body : bodies) {
         const auto& pos = body->GetPosition();
-        const auto& force = body->GetForce();
+        const auto& velocity = body->GetVelocity();
         
-        // Skip if force is too small
-        if (glm::length(force) < 0.001f) continue;
+        float speed = glm::length(velocity);
         
-        // Scale force for visibility
-        float forceScale = FORCE_SCALE / m_camera.zoom;
-        glm::vec2 forceEnd = pos + force * forceScale;
+        // Skip very slow bodies
+        if (speed < minVisibleSpeed) continue;
         
-        // Add force vector line
+        // Normalize and scale velocity
+        glm::vec2 direction = glm::normalize(velocity);
+        
+        // Use square root scaling for better visual distribution
+        float normalizedSpeed = speed / maxSpeed;
+        float scaledSpeed = std::sqrt(normalizedSpeed);
+        
+        // Calculate vector length with reasonable bounds
+        float vectorLength = baseLength * scaledSpeed;
+        vectorLength = std::max(0.5f / m_camera.zoom, std::min(vectorLength, 8.0f / m_camera.zoom));
+        
+        glm::vec2 velocityEnd = pos + direction * vectorLength;
+        
+        // Add velocity vector line
         m_forceVertices.push_back(pos);
-        m_forceVertices.push_back(forceEnd);
+        m_forceVertices.push_back(velocityEnd);
         
-        // Add simple arrowhead
-        glm::vec2 dir = glm::normalize(force);
-        if (glm::length(dir) > 0.001f) {
-            glm::vec2 perp(-dir.y, dir.x);
-            float arrowSize = 2.0f / m_camera.zoom;
+        // Add arrowhead only for longer vectors
+        if (vectorLength > 1.0f / m_camera.zoom) {
+            glm::vec2 perp(-direction.y, direction.x);
+            float arrowSize = std::min(vectorLength * 0.25f, 1.0f / m_camera.zoom);
             
-            glm::vec2 arrow1 = forceEnd - dir * arrowSize + perp * arrowSize * 0.5f;
-            glm::vec2 arrow2 = forceEnd - dir * arrowSize - perp * arrowSize * 0.5f;
+            glm::vec2 arrow1 = velocityEnd - direction * arrowSize + perp * arrowSize * 0.4f;
+            glm::vec2 arrow2 = velocityEnd - direction * arrowSize - perp * arrowSize * 0.4f;
             
-            m_forceVertices.push_back(forceEnd);
+            m_forceVertices.push_back(velocityEnd);
             m_forceVertices.push_back(arrow1);
-            m_forceVertices.push_back(forceEnd);
+            m_forceVertices.push_back(velocityEnd);
             m_forceVertices.push_back(arrow2);
         }
     }
