@@ -4,6 +4,7 @@ bin/
 lib/
 /REF
 todo.txt
+.kiro/
 
 # Visual Studio files
 *.vcxproj.user
