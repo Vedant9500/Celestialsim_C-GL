@@ -188,7 +188,6 @@ void BarnesHutTree::UpdateMassAndCenter(QuadTreeNode* node) {
 glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, float G) const {
     glm::vec2 totalForce(0.0f);
     if (!m_root || m_root->totalMass <= 0.0f) {
-        std::cout << "Warning: Empty or massless root node in CalculateForceIterative" << std::endl;
         return totalForce;
     }
 
@@ -197,12 +196,6 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
     
     int nodeVisits = 0;
     int nodesTotalMass = 0;
-
-    std::cout << "Force calc for body at (" << body.GetPosition().x << "," << body.GetPosition().y 
-              << "), body mass=" << body.GetMass() 
-              << ", tree root mass=" << m_root->totalMass 
-              << ", tree center=(" << m_root->center.x << "," << m_root->center.y << ")"
-              << std::endl;
 
     while (!stack.empty()) {
         const QuadTreeNode* node = stack.back();
@@ -235,19 +228,15 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
             // Node is far enough away, use approximation
             if (distanceSq <= 0.0f) continue; // Avoid division by zero
             
-            // Add softening to prevent excessive forces at small distances
-            float softDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            // Use consistent gravitational force calculation
+            // Calculate force magnitude: F = G * mass / r² where r² includes softening
+            float softenedDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            float forceMagnitude = G * node->totalMass / softenedDistSq;
             
-            // Calculate force using optimized formula: F = G * m1 * m2 / r^3 * direction
-            // This avoids normalizing the direction vector separately
-            float invDist = 1.0f / std::sqrt(softDistSq);
-            float invDistCubed = invDist * invDist * invDist;
+            // Normalize direction and apply magnitude
+            float invDistance = 1.0f / std::sqrt(distanceSq);
+            totalForce += forceMagnitude * bodyToNode * invDistance;
             
-            // G * mass * direction / r^3
-            float forceFactor = G * node->totalMass * invDistCubed;
-            
-            // Apply force: direction * magnitude (already combined in forceFactor)
-            totalForce += bodyToNode * forceFactor;
             m_stats.forceCalculations++;
         } 
         else if (node->isLeaf) {
@@ -257,13 +246,14 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
             
             if (distanceSq <= 0.0f) continue; // Avoid division by zero
             
-            // Direct calculation with the same optimization
-            float softDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
-            float invDist = 1.0f / std::sqrt(softDistSq);
-            float invDistCubed = invDist * invDist * invDist;
-            float forceFactor = G * node->totalMass * invDistCubed;
+            // Use consistent gravitational force calculation
+            float softenedDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            float forceMagnitude = G * node->totalMass / softenedDistSq;
             
-            totalForce += bodyToNode * forceFactor;
+            // Normalize direction and apply magnitude
+            float invDistance = 1.0f / std::sqrt(distanceSq);
+            totalForce += forceMagnitude * bodyToNode * invDistance;
+            
             m_stats.forceCalculations++;
         } 
         else {

@@ -147,26 +147,21 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
             
             auto& bodyB = bodies[j];
             
-            // Calculate direction vector from bodyA to bodyB
-            glm::vec2 vector_i_j = bodyB->GetPosition() - bodyA->GetPosition();
+            // Use shared gravitational force calculation
+            glm::vec2 force = CalculateGravitationalForce(
+                bodyA->GetPosition(),
+                bodyB->GetPosition(), bodyB->GetMass(),
+                G, softening
+            );
             
-            // Distance calculation: pow(dot(r,r) + softening², 1.5)
-            // This is more numerically stable than sqrt-based approaches
-            float distanceSquared = glm::dot(vector_i_j, vector_i_j);
-            float distance_i_j = std::pow(distanceSquared + softeningSq, 1.5f);
-            
-            // Prevent division by zero (though pow(softening², 1.5) should handle this)
-            if (distance_i_j > 1e-10f) {
-                // Force formula: F = ((G * mass_j) / distance_i_j) * vector_i_j
-                // Note: Mass of bodyA will be cancelled out when converting F to acceleration
-                float forceMagnitude = (G * bodyB->GetMass()) / distance_i_j;
-                
-                // Cap maximum force to prevent instability
-                forceMagnitude = std::min(forceMagnitude, MAX_FORCE);
-                
-                totalForce += forceMagnitude * vector_i_j;
-                localForceCalculations++;
+            // Cap maximum force magnitude to prevent instability
+            float forceMagnitude = glm::length(force);
+            if (forceMagnitude > MAX_FORCE) {
+                force = (force / forceMagnitude) * MAX_FORCE;
             }
+            
+            totalForce += force;
+            localForceCalculations++;
         }
         
         // Apply total force to body
@@ -729,5 +724,31 @@ void PhysicsEngine::CleanupGPUBuffers() {
     m_maxGPUParticles = 0;
 }
 */
+
+glm::vec2 PhysicsEngine::CalculateGravitationalForce(
+    const glm::vec2& positionA,
+    const glm::vec2& positionB, float massB,
+    float G, float softeningLength
+) {
+    // Calculate direction vector from A to B (force direction on A)
+    glm::vec2 direction = positionB - positionA;
+    
+    // Calculate distance squared
+    float distanceSquared = glm::dot(direction, direction);
+    
+    // Apply softening to prevent singularities
+    float softenedDistanceSquared = distanceSquared + softeningLength * softeningLength;
+    
+    // Calculate force magnitude: F = G * mB / r² (acceleration on A)
+    float forceMagnitude = G * massB / softenedDistanceSquared;
+    
+    // Normalize direction and apply magnitude
+    if (distanceSquared > 1e-10f) {
+        float invDistance = 1.0f / std::sqrt(distanceSquared);
+        return forceMagnitude * direction * invDistance;
+    }
+    
+    return glm::vec2(0.0f);
+}
 
 } // namespace nbody

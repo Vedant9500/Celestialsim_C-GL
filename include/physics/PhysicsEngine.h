@@ -128,6 +128,13 @@ public:
     // Barnes-Hut tree access for visualization
     const BarnesHutTree* GetBarnesHutTree() const { return m_barnesHutTree.get(); }
     
+    // Shared force calculation utility
+    static glm::vec2 CalculateGravitationalForce(
+        const glm::vec2& positionA,
+        const glm::vec2& positionB, float massB,
+        float G, float softeningLength
+    );
+    
 private:
     PhysicsConfig m_config;
     PhysicsStats m_stats;
