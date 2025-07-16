@@ -239,6 +239,10 @@ private:
     void UpdateQuadTreeVertices(const QuadTreeNode* root);
     
     void RenderBodies();
+    void RenderTrails(const std::vector<std::unique_ptr<Body>>& bodies);
+    void RenderGrid();
+    void RenderForces(const std::vector<std::unique_ptr<Body>>& bodies, const PhysicsEngine& physics);
+    void RenderQuadTree(const PhysicsEngine& physics);
     
     void StartTimer();
     void EndTimer();

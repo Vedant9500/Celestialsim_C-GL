@@ -1,6 +1,7 @@
 #include "rendering/Renderer.h"
 #include "core/Body.h"
 #include "physics/PhysicsEngine.h"
+#include "physics/BarnesHut.h"
 #include <iostream>
 #include <cmath>
 #include <fstream>
@@ -224,6 +225,34 @@ bool Renderer::InitializeShaders() {
         }
     }
     
+    // Trail shader
+    m_trailShader = std::make_unique<Shader>();
+    if (!m_trailShader->LoadFromFile("shaders/trail.vert", "shaders/trail.frag")) {
+        std::cerr << "Failed to load trail shader" << std::endl;
+        return false;
+    }
+    
+    // Grid shader
+    m_gridShader = std::make_unique<Shader>();
+    if (!m_gridShader->LoadFromFile("shaders/grid.vert", "shaders/grid.frag")) {
+        std::cerr << "Failed to load grid shader" << std::endl;
+        return false;
+    }
+    
+    // Force shader
+    m_forceShader = std::make_unique<Shader>();
+    if (!m_forceShader->LoadFromFile("shaders/force.vert", "shaders/force.frag")) {
+        std::cerr << "Failed to load force shader" << std::endl;
+        return false;
+    }
+    
+    // QuadTree shader
+    m_quadTreeShader = std::make_unique<Shader>();
+    if (!m_quadTreeShader->LoadFromFile("shaders/quadtree.vert", "shaders/quadtree.frag")) {
+        std::cerr << "Failed to load quadtree shader" << std::endl;
+        return false;
+    }
+
     return true;
 }
 
@@ -269,12 +298,48 @@ bool Renderer::InitializeBuffers() {
     
     glBindVertexArray(0);
     
+    // Trail VAO and VBO
+    glGenVertexArrays(1, &m_trailVAO);
+    glGenBuffers(1, &m_trailVBO);
+    glBindVertexArray(m_trailVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_trailVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+    
+    // Grid VAO and VBO
+    glGenVertexArrays(1, &m_gridVAO);
+    glGenBuffers(1, &m_gridVBO);
+    glBindVertexArray(m_gridVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_gridVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+    
+    // Force VAO and VBO
+    glGenVertexArrays(1, &m_forceVAO);
+    glGenBuffers(1, &m_forceVBO);
+    glBindVertexArray(m_forceVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_forceVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+    
+    // QuadTree VAO and VBO
+    glGenVertexArrays(1, &m_quadTreeVAO);
+    glGenBuffers(1, &m_quadTreeVBO);
+    glBindVertexArray(m_quadTreeVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_quadTreeVBO);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(glm::vec2), (void*)0);
+    glEnableVertexAttribArray(0);
+    glBindVertexArray(0);
+    
     CheckGLError("Buffer initialization");
     return true;
 }
 
 RenderStats Renderer::Render(const std::vector<std::unique_ptr<Body>>& bodies,
-                             const PhysicsEngine& /*physics*/,
+                             const PhysicsEngine& physics,
                              const Body* selectedBody) {
     StartTimer();
     
@@ -292,8 +357,22 @@ RenderStats Renderer::Render(const std::vector<std::unique_ptr<Body>>& bodies,
     UpdateBodyInstances(bodies, selectedBody);
     RenderBodies();
     
-    // TODO: Implement visualization features properly with modern OpenGL
-    // For now, let's keep it simple to not break existing functionality
+    // Render visualization features
+    if (m_showTrails) {
+        RenderTrails(bodies);
+    }
+    
+    if (m_showGrid) {
+        RenderGrid();
+    }
+    
+    if (m_showForces) {
+        RenderForces(bodies, physics);
+    }
+    
+    if (m_showQuadTree) {
+        RenderQuadTree(physics);
+    }
     
     // Update statistics
     EndTimer();
@@ -461,6 +540,322 @@ void Renderer::CleanupGL() {
     if (m_bodyVAO) glDeleteVertexArrays(1, &m_bodyVAO);
     if (m_bodyVBO) glDeleteBuffers(1, &m_bodyVBO);
     if (m_bodyInstanceVBO) glDeleteBuffers(1, &m_bodyInstanceVBO);
+}
+
+void Renderer::RenderTrails(const std::vector<std::unique_ptr<Body>>& bodies) {
+    if (!m_trailShader || !m_trailShader->IsValid()) {
+        return;
+    }
+    
+    // Update trail vertices
+    UpdateTrailVertices(bodies);
+    
+    if (m_trailVertices.empty()) {
+        return;
+    }
+    
+    // Use trail shader
+    m_trailShader->Use();
+    
+    // Set up matrices
+    glm::mat4 projection = m_camera.GetProjectionMatrix(static_cast<float>(m_windowWidth), static_cast<float>(m_windowHeight));
+    glm::mat4 view = m_camera.GetViewMatrix();
+    
+    m_trailShader->SetMat4("uProjection", projection);
+    m_trailShader->SetMat4("uView", view);
+    
+    // Bind VAO and update VBO
+    glBindVertexArray(m_trailVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_trailVBO);
+    glBufferData(GL_ARRAY_BUFFER, m_trailVertices.size() * sizeof(glm::vec2), 
+                 m_trailVertices.data(), GL_DYNAMIC_DRAW);
+    
+    // Enable blending for trail transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Render trails for each body
+    size_t vertexOffset = 0;
+    for (const auto& body : bodies) {
+        const auto& trail = body->GetTrail();
+        if (trail.size() < 2) {
+            continue;
+        }
+        
+        // Set trail color (dimmed body color)
+        const auto& color = body->GetColor();
+        m_trailShader->SetVec3("uColor", glm::vec3(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f));
+        
+        // Draw trail as line strip
+        size_t trailVertexCount = (trail.size() - 1) * 2; // Each segment = 2 vertices
+        glDrawArrays(GL_LINES, static_cast<GLint>(vertexOffset), static_cast<GLsizei>(trailVertexCount));
+        
+        vertexOffset += trailVertexCount;
+    }
+    
+    glDisable(GL_BLEND);
+    glBindVertexArray(0);
+    m_trailShader->Unuse();
+}
+
+void Renderer::RenderGrid() {
+    if (!m_gridShader || !m_gridShader->IsValid()) {
+        return;
+    }
+    
+    // Update grid vertices
+    UpdateGridVertices();
+    
+    if (m_gridVertices.empty()) {
+        return;
+    }
+    
+    // Use grid shader
+    m_gridShader->Use();
+    
+    // Set up matrices
+    glm::mat4 projection = m_camera.GetProjectionMatrix(static_cast<float>(m_windowWidth), static_cast<float>(m_windowHeight));
+    glm::mat4 view = m_camera.GetViewMatrix();
+    
+    m_gridShader->SetMat4("uProjection", projection);
+    m_gridShader->SetMat4("uView", view);
+    
+    // Bind VAO and update VBO
+    glBindVertexArray(m_gridVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_gridVBO);
+    glBufferData(GL_ARRAY_BUFFER, m_gridVertices.size() * sizeof(glm::vec2), 
+                 m_gridVertices.data(), GL_DYNAMIC_DRAW);
+    
+    // Enable blending for grid transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Draw grid lines
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_gridVertices.size()));
+    
+    glDisable(GL_BLEND);
+    glBindVertexArray(0);
+    m_gridShader->Unuse();
+}
+
+void Renderer::RenderForces(const std::vector<std::unique_ptr<Body>>& bodies, const PhysicsEngine& physics) {
+    if (!m_forceShader || !m_forceShader->IsValid()) {
+        return;
+    }
+    
+    // Update force vertices
+    UpdateForceVertices(bodies, physics);
+    
+    if (m_forceVertices.empty()) {
+        return;
+    }
+    
+    // Use force shader
+    m_forceShader->Use();
+    
+    // Set up matrices
+    glm::mat4 projection = m_camera.GetProjectionMatrix(static_cast<float>(m_windowWidth), static_cast<float>(m_windowHeight));
+    glm::mat4 view = m_camera.GetViewMatrix();
+    
+    m_forceShader->SetMat4("uProjection", projection);
+    m_forceShader->SetMat4("uView", view);
+    
+    // Bind VAO and update VBO
+    glBindVertexArray(m_forceVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_forceVBO);
+    glBufferData(GL_ARRAY_BUFFER, m_forceVertices.size() * sizeof(glm::vec2), 
+                 m_forceVertices.data(), GL_DYNAMIC_DRAW);
+    
+    // Enable blending for force transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Draw force vectors
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_forceVertices.size()));
+    
+    glDisable(GL_BLEND);
+    glBindVertexArray(0);
+    m_forceShader->Unuse();
+}
+
+void Renderer::RenderQuadTree(const PhysicsEngine& physics) {
+    if (!m_quadTreeShader || !m_quadTreeShader->IsValid()) {
+        return;
+    }
+    
+    // Get the Barnes-Hut tree from physics engine
+    const auto* tree = physics.GetBarnesHutTree();
+    if (!tree) return;
+    
+    const auto* rootNode = tree->GetRoot();
+    if (!rootNode) return;
+    
+    // Update quadtree vertices
+    UpdateQuadTreeVertices(rootNode);
+    
+    if (m_quadTreeVertices.empty()) {
+        return;
+    }
+    
+    // Use quadtree shader
+    m_quadTreeShader->Use();
+    
+    // Set up matrices
+    glm::mat4 projection = m_camera.GetProjectionMatrix(static_cast<float>(m_windowWidth), static_cast<float>(m_windowHeight));
+    glm::mat4 view = m_camera.GetViewMatrix();
+    
+    m_quadTreeShader->SetMat4("uProjection", projection);
+    m_quadTreeShader->SetMat4("uView", view);
+    
+    // Bind VAO and update VBO
+    glBindVertexArray(m_quadTreeVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, m_quadTreeVBO);
+    glBufferData(GL_ARRAY_BUFFER, m_quadTreeVertices.size() * sizeof(glm::vec2), 
+                 m_quadTreeVertices.data(), GL_DYNAMIC_DRAW);
+    
+    // Enable blending for quadtree transparency
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    // Draw quadtree structure
+    glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(m_quadTreeVertices.size()));
+    
+    glDisable(GL_BLEND);
+    glBindVertexArray(0);
+    m_quadTreeShader->Unuse();
+}
+
+// Update methods for vertex generation
+void Renderer::UpdateTrailVertices(const std::vector<std::unique_ptr<Body>>& bodies) {
+    m_trailVertices.clear();
+    
+    for (const auto& body : bodies) {
+        const auto& trail = body->GetTrail();
+        if (trail.size() < 2) continue;
+        
+        // Add trail segments as line pairs
+        for (size_t i = 1; i < trail.size(); ++i) {
+            m_trailVertices.push_back(trail[i-1]);
+            m_trailVertices.push_back(trail[i]);
+        }
+    }
+}
+
+void Renderer::UpdateGridVertices() {
+    m_gridVertices.clear();
+    
+    // Calculate grid spacing based on zoom level
+    float gridSpacing = 10.0f / m_camera.zoom;
+    if (gridSpacing < 1.0f) gridSpacing = 1.0f;
+    if (gridSpacing > 100.0f) gridSpacing = 100.0f;
+    
+    // Calculate visible area
+    float aspect = static_cast<float>(m_windowWidth) / m_windowHeight;
+    float halfWidth = aspect / m_camera.zoom;
+    float halfHeight = 1.0f / m_camera.zoom;
+    
+    float left = m_camera.position.x - halfWidth;
+    float right = m_camera.position.x + halfWidth;
+    float bottom = m_camera.position.y - halfHeight;
+    float top = m_camera.position.y + halfHeight;
+    
+    // Generate vertical lines
+    float startX = floor(left / gridSpacing) * gridSpacing;
+    for (float x = startX; x <= right; x += gridSpacing) {
+        m_gridVertices.push_back(glm::vec2(x, bottom));
+        m_gridVertices.push_back(glm::vec2(x, top));
+    }
+    
+    // Generate horizontal lines
+    float startY = floor(bottom / gridSpacing) * gridSpacing;
+    for (float y = startY; y <= top; y += gridSpacing) {
+        m_gridVertices.push_back(glm::vec2(left, y));
+        m_gridVertices.push_back(glm::vec2(right, y));
+    }
+}
+
+void Renderer::UpdateForceVertices(const std::vector<std::unique_ptr<Body>>& bodies, const PhysicsEngine& physics) {
+    m_forceVertices.clear();
+    
+    for (const auto& body : bodies) {
+        const auto& pos = body->GetPosition();
+        const auto& force = body->GetForce();
+        
+        // Skip if force is too small
+        if (glm::length(force) < 0.001f) continue;
+        
+        // Scale force for visibility
+        float forceScale = FORCE_SCALE / m_camera.zoom;
+        glm::vec2 forceEnd = pos + force * forceScale;
+        
+        // Add force vector line
+        m_forceVertices.push_back(pos);
+        m_forceVertices.push_back(forceEnd);
+        
+        // Add simple arrowhead
+        glm::vec2 dir = glm::normalize(force);
+        if (glm::length(dir) > 0.001f) {
+            glm::vec2 perp(-dir.y, dir.x);
+            float arrowSize = 2.0f / m_camera.zoom;
+            
+            glm::vec2 arrow1 = forceEnd - dir * arrowSize + perp * arrowSize * 0.5f;
+            glm::vec2 arrow2 = forceEnd - dir * arrowSize - perp * arrowSize * 0.5f;
+            
+            m_forceVertices.push_back(forceEnd);
+            m_forceVertices.push_back(arrow1);
+            m_forceVertices.push_back(forceEnd);
+            m_forceVertices.push_back(arrow2);
+        }
+    }
+}
+
+void Renderer::UpdateQuadTreeVertices(const QuadTreeNode* root) {
+    m_quadTreeVertices.clear();
+    
+    if (!root) return;
+    
+    // Recursive function to traverse tree and generate line vertices
+    TraverseQuadTree(root, m_quadTreeVertices);
+}
+
+void Renderer::TraverseQuadTree(const QuadTreeNode* node, std::vector<glm::vec2>& vertices) {
+    if (!node) return;
+    
+    // Generate boundary lines for this node
+    float halfSize = node->size / 2.0f;
+    float left = node->center.x - halfSize;
+    float right = node->center.x + halfSize;
+    float bottom = node->center.y - halfSize;
+    float top = node->center.y + halfSize;
+    
+    // Add boundary as line segments
+    // Bottom edge
+    vertices.push_back(glm::vec2(left, bottom));
+    vertices.push_back(glm::vec2(right, bottom));
+    
+    // Right edge
+    vertices.push_back(glm::vec2(right, bottom));
+    vertices.push_back(glm::vec2(right, top));
+    
+    // Top edge
+    vertices.push_back(glm::vec2(right, top));
+    vertices.push_back(glm::vec2(left, top));
+    
+    // Left edge
+    vertices.push_back(glm::vec2(left, top));
+    vertices.push_back(glm::vec2(left, bottom));
+    
+    // Recursively process children (limit depth for performance)
+    static int depth = 0;
+    if (!node->isLeaf && depth < 8) {
+        depth++;
+        for (int i = 0; i < 4; i++) {
+            if (node->children[i]) {
+                TraverseQuadTree(node->children[i].get(), vertices);
+            }
+        }
+        depth--;
+    }
 }
 
 } // namespace nbody
