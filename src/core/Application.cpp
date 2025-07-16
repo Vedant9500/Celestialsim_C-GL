@@ -7,6 +7,9 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
+#include <fstream>
+#include <sstream>
+#include <map>
 #include <algorithm>
 #include <random>
 #include <cmath>
@@ -128,7 +131,8 @@ bool Application::Initialize() {
         config.restitution = m_ui->GetRestitution();
     };
     
-    // Initial sync of physics parameters from UI
+    // Initial sync: First sync UI from engines, then sync engines from UI
+    m_ui->SyncFromEngines(*m_physics, *m_renderer);
     if (m_ui->OnPhysicsParameterChanged) {
         m_ui->OnPhysicsParameterChanged();
     }
@@ -169,7 +173,22 @@ bool Application::Initialize() {
     
     m_ui->OnDeleteBody = [this](Body* body) { RemoveBody(body); };
     
-    m_ui->OnDeleteBody = [this](Body* body) { RemoveBody(body); };
+    // Configuration save/load callbacks
+    m_ui->OnSaveConfig = [this](const std::string& filename) {
+        SaveConfiguration(filename);
+    };
+    
+    m_ui->OnLoadConfig = [this](const std::string& filename) {
+        LoadConfiguration(filename);
+    };
+    
+    // Trail length callback
+    m_ui->OnTrailLengthChanged = [this](int length) {
+        // Update trail length for all existing bodies
+        for (auto& body : m_bodies) {
+            body->SetMaxTrailLength(length);
+        }
+    };
     
     // Performance benchmarking
     m_ui->OnRunBenchmark = [this]() {
@@ -1324,6 +1343,181 @@ glm::vec2 Application::CalculateVelocityForPattern(const glm::vec2& position, in
     }
     
     return velocity;
+}
+
+void Application::SaveConfiguration(const std::string& filename) {
+    try {
+        std::ofstream file(filename);
+        if (!file.is_open()) {
+            // Could add error logging here
+            return;
+        }
+        
+        // Save physics configuration
+        const auto& config = m_physics->GetConfig();
+        file << "# N-Body Simulation Configuration\n";
+        file << "physics.gravitationalConstant=" << config.gravitationalConstant << "\n";
+        file << "physics.timeStep=" << config.timeStep << "\n";
+        file << "physics.timeScale=" << config.timeScale << "\n";
+        file << "physics.softeningLength=" << config.softeningLength << "\n";
+        file << "physics.useBarnesHut=" << (config.useBarnesHut ? "true" : "false") << "\n";
+        file << "physics.barnesHutTheta=" << config.barnesHutTheta << "\n";
+        file << "physics.enableCollisions=" << (config.enableCollisions ? "true" : "false") << "\n";
+        file << "physics.restitution=" << config.restitution << "\n";
+        
+        // Save camera configuration
+        file << "camera.position.x=" << m_renderer->GetCamera().position.x << "\n";
+        file << "camera.position.y=" << m_renderer->GetCamera().position.y << "\n";
+        file << "camera.zoom=" << m_renderer->GetCamera().zoom << "\n";
+        
+        // Save render settings
+        file << "render.showTrails=" << (m_renderer->GetShowTrails() ? "true" : "false") << "\n";
+        file << "render.showGrid=" << (m_renderer->GetShowGrid() ? "true" : "false") << "\n";
+        file << "render.showForces=" << (m_renderer->GetShowForces() ? "true" : "false") << "\n";
+        
+        // Save bodies
+        file << "bodies.count=" << m_bodies.size() << "\n";
+        for (size_t i = 0; i < m_bodies.size(); ++i) {
+            const auto& body = m_bodies[i];
+            file << "body." << i << ".position.x=" << body->GetPosition().x << "\n";
+            file << "body." << i << ".position.y=" << body->GetPosition().y << "\n";
+            file << "body." << i << ".velocity.x=" << body->GetVelocity().x << "\n";
+            file << "body." << i << ".velocity.y=" << body->GetVelocity().y << "\n";
+            file << "body." << i << ".mass=" << body->GetMass() << "\n";
+            file << "body." << i << ".radius=" << body->GetRadius() << "\n";
+            file << "body." << i << ".color.r=" << body->GetColor().r << "\n";
+            file << "body." << i << ".color.g=" << body->GetColor().g << "\n";
+            file << "body." << i << ".color.b=" << body->GetColor().b << "\n";
+        }
+        
+        file.close();
+    } catch (const std::exception& e) {
+        // Could add error logging here
+    }
+}
+
+void Application::LoadConfiguration(const std::string& filename) {
+    try {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            // Could add error logging here
+            return;
+        }
+        
+        // Clear existing bodies
+        ClearBodies();
+        
+        // Parse configuration
+        std::string line;
+        std::map<std::string, std::string> config;
+        
+        while (std::getline(file, line)) {
+            // Skip comments and empty lines
+            if (line.empty() || line[0] == '#') continue;
+            
+            // Parse key=value pairs
+            size_t pos = line.find('=');
+            if (pos != std::string::npos) {
+                std::string key = line.substr(0, pos);
+                std::string value = line.substr(pos + 1);
+                config[key] = value;
+            }
+        }
+        
+        // Apply physics configuration
+        auto& physicsConfig = m_physics->GetMutableConfig();
+        if (config.count("physics.gravitationalConstant")) {
+            physicsConfig.gravitationalConstant = std::stof(config["physics.gravitationalConstant"]);
+        }
+        if (config.count("physics.timeStep")) {
+            physicsConfig.timeStep = std::stof(config["physics.timeStep"]);
+        }
+        if (config.count("physics.timeScale")) {
+            physicsConfig.timeScale = std::stof(config["physics.timeScale"]);
+        }
+        if (config.count("physics.softeningLength")) {
+            physicsConfig.softeningLength = std::stof(config["physics.softeningLength"]);
+        }
+        if (config.count("physics.useBarnesHut")) {
+            physicsConfig.useBarnesHut = (config["physics.useBarnesHut"] == "true");
+        }
+        if (config.count("physics.barnesHutTheta")) {
+            physicsConfig.barnesHutTheta = std::stof(config["physics.barnesHutTheta"]);
+        }
+        if (config.count("physics.enableCollisions")) {
+            physicsConfig.enableCollisions = (config["physics.enableCollisions"] == "true");
+        }
+        if (config.count("physics.restitution")) {
+            physicsConfig.restitution = std::stof(config["physics.restitution"]);
+        }
+        
+        // Apply camera configuration
+        if (config.count("camera.position.x") && config.count("camera.position.y")) {
+            glm::vec2 pos(std::stof(config["camera.position.x"]), std::stof(config["camera.position.y"]));
+            m_renderer->SetCameraPosition(pos);
+        }
+        if (config.count("camera.zoom")) {
+            m_renderer->SetCameraZoom(std::stof(config["camera.zoom"]));
+        }
+        
+        // Apply render settings
+        if (config.count("render.showTrails")) {
+            m_renderer->SetShowTrails(config["render.showTrails"] == "true");
+        }
+        if (config.count("render.showGrid")) {
+            m_renderer->SetShowGrid(config["render.showGrid"] == "true");
+        }
+        if (config.count("render.showForces")) {
+            m_renderer->SetShowForces(config["render.showForces"] == "true");
+        }
+        
+        // Load bodies
+        if (config.count("bodies.count")) {
+            int bodyCount = std::stoi(config["bodies.count"]);
+            for (int i = 0; i < bodyCount; ++i) {
+                std::string prefix = "body." + std::to_string(i) + ".";
+                
+                if (config.count(prefix + "position.x") && config.count(prefix + "position.y") &&
+                    config.count(prefix + "velocity.x") && config.count(prefix + "velocity.y") &&
+                    config.count(prefix + "mass")) {
+                    
+                    glm::vec2 position(std::stof(config[prefix + "position.x"]), 
+                                     std::stof(config[prefix + "position.y"]));
+                    glm::vec2 velocity(std::stof(config[prefix + "velocity.x"]), 
+                                     std::stof(config[prefix + "velocity.y"]));
+                    float mass = std::stof(config[prefix + "mass"]);
+                    
+                    // Optional properties with defaults
+                    float radius = config.count(prefix + "radius") ? std::stof(config[prefix + "radius"]) : 
+                                 std::sqrt(mass / (3.14159f * 1000.0f));
+                    
+                    glm::vec3 color(1.0f, 1.0f, 1.0f);
+                    if (config.count(prefix + "color.r") && config.count(prefix + "color.g") && config.count(prefix + "color.b")) {
+                        color = glm::vec3(std::stof(config[prefix + "color.r"]),
+                                        std::stof(config[prefix + "color.g"]),
+                                        std::stof(config[prefix + "color.b"]));
+                    }
+                    
+                    AddBody(position, velocity, mass, 1000.0f, color);
+                }
+            }
+        }
+        
+        file.close();
+        
+        // Update UI to reflect loaded parameters
+        if (m_ui->OnPhysicsParameterChanged) {
+            m_ui->OnPhysicsParameterChanged();
+        }
+        if (m_ui->OnRenderParameterChanged) {
+            m_ui->OnRenderParameterChanged();
+        }
+        
+    } catch (const std::exception& e) {
+        // Could add error logging here
+        // For now, just clear bodies if loading failed
+        ClearBodies();
+    }
 }
 
 } // namespace nbody

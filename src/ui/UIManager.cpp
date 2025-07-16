@@ -81,10 +81,39 @@ void UIManager::EndFrame() {
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
+void UIManager::SyncFromEngines(const PhysicsEngine& physics, const Renderer& renderer) {
+    // Sync physics parameters from engine
+    const auto& config = physics.GetConfig();
+    m_gravitationalConstant = config.gravitationalConstant;
+    m_timeStep = config.timeStep;
+    m_timeScale = config.timeScale;
+    m_softeningLength = config.softeningLength;
+    m_useBarnesHut = config.useBarnesHut;
+    m_barnesHutTheta = config.barnesHutTheta;
+    m_enableCollisions = config.enableCollisions;
+    m_restitution = config.restitution;
+    
+    // Sync render parameters from renderer
+    m_showTrails = renderer.GetShowTrails();
+    m_showGrid = renderer.GetShowGrid();
+    m_showForces = renderer.GetShowForces();
+    m_showQuadTree = renderer.GetShowQuadTree();
+    
+    // Sync camera parameters
+    const auto& camera = renderer.GetCamera();
+    m_cameraPosition = camera.position;
+    m_cameraZoom = camera.zoom;
+}
+
 void UIManager::Render(const std::vector<std::unique_ptr<Body>>& bodies,
                       const PhysicsEngine& physics,
                       const Renderer& renderer,
                       const Body* selectedBody) {
+    // Update camera values for display
+    const auto& camera = renderer.GetCamera();
+    m_cameraPosition = camera.position;
+    m_cameraZoom = camera.zoom;
+    
     if (m_showMainWindow) {
         RenderMainMenuBar();
     }
@@ -360,7 +389,9 @@ void UIManager::RenderControlPanel() {
             if (OnRenderParameterChanged) OnRenderParameterChanged();
         }
         if (m_showTrails) {
-            ImGui::SliderInt("Trail Length", &m_trailLength, 10, 500);
+            if (ImGui::SliderInt("Trail Length", &m_trailLength, 10, 500)) {
+                if (OnTrailLengthChanged) OnTrailLengthChanged(m_trailLength);
+            }
         }
         if (ImGui::Checkbox("Show Grid", &m_showGrid)) {
             if (OnRenderParameterChanged) OnRenderParameterChanged();

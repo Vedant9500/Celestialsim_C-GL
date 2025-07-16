@@ -3,6 +3,7 @@ build/
 bin/
 lib/
 /REF
+todo.txt
 
 # Visual Studio files
 *.vcxproj.user

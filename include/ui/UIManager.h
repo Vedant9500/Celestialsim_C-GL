@@ -70,6 +70,13 @@ public:
     void EndFrame();
 
     /**
+     * @brief Sync UI parameters from physics engine
+     * @param physics Physics engine to sync from
+     * @param renderer Renderer to sync from
+     */
+    void SyncFromEngines(const PhysicsEngine& physics, const Renderer& renderer);
+
+    /**
      * @brief Check if mouse is over UI
      * @return True if mouse is over UI elements
      */
@@ -125,6 +132,7 @@ public:
     std::function<void(const std::string&)> OnLoadConfig;
     std::function<void()> OnPhysicsParameterChanged;
     std::function<void()> OnRenderParameterChanged;
+    std::function<void(int)> OnTrailLengthChanged;  // Trail length parameter
     std::function<void()> OnResetCamera;
     std::function<void()> OnFitAllBodies;
     std::function<void(int, int)> OnSpawnBodies;  // (count, pattern)

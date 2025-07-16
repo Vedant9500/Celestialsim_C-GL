@@ -110,6 +110,10 @@ private:
     void CreateCollisionCourse();
     void SpawnBodies(int count, int pattern);
     
+    // Configuration save/load
+    void SaveConfiguration(const std::string& filename);
+    void LoadConfiguration(const std::string& filename);
+    
     // Helper methods
     float CalculateDynamicSpawnRadius(int count, int pattern, float baseRadius);
     
