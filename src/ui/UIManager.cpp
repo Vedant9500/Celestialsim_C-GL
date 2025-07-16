@@ -876,7 +876,14 @@ bool UIManager::SliderFloatWithInput(const char* label, float* value, float minV
     // Create unique IDs for the controls
     ImGui::PushID(label);
     
-    // Calculate layout widths
+    // Display label first
+    ImGui::Text("%s", label);
+    if (helpText) {
+        ImGui::SameLine();
+        ShowHelpMarker(helpText);
+    }
+    
+    // Calculate layout widths for the controls
     float availableWidth = ImGui::GetContentRegionAvail().x;
     float buttonWidth = 50.0f;
     float inputWidth = 80.0f;
@@ -904,15 +911,6 @@ bool UIManager::SliderFloatWithInput(const char* label, float* value, float minV
         changed = true;
     }
     
-    // Label and help
-    ImGui::SameLine();
-    ImGui::Text("%s", label);
-    
-    if (helpText) {
-        ImGui::SameLine();
-        ShowHelpMarker(helpText);
-    }
-    
     ImGui::PopID();
     return changed;
 }
@@ -921,6 +919,13 @@ bool UIManager::CheckboxWithReset(const char* label, bool* value, bool defaultVa
     bool changed = false;
     
     ImGui::PushID(label);
+    
+    // Label first
+    ImGui::Text("%s", label);
+    if (helpText) {
+        ImGui::SameLine();
+        ShowHelpMarker(helpText);
+    }
     
     // Checkbox
     if (ImGui::Checkbox("##checkbox", value)) {
@@ -932,15 +937,6 @@ bool UIManager::CheckboxWithReset(const char* label, bool* value, bool defaultVa
     if (ImGui::Button("Reset", ImVec2(50.0f, 0))) {
         *value = defaultVal;
         changed = true;
-    }
-    
-    // Label and help
-    ImGui::SameLine();
-    ImGui::Text("%s", label);
-    
-    if (helpText) {
-        ImGui::SameLine();
-        ShowHelpMarker(helpText);
     }
     
     ImGui::PopID();

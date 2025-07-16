@@ -10,9 +10,9 @@ Body::Body(const glm::vec2& position, const glm::vec2& velocity, float mass, con
     , m_mass(mass)
     , m_color(color)
     , m_density(DEFAULT_DENSITY)
+    , m_trail(m_maxTrailLength)  // Initialize CircularTrail with capacity
 {
     UpdateRadius();
-    m_trail.reserve(m_maxTrailLength);
 }
 
 void Body::SetPosition(const glm::vec2& position) {
@@ -86,17 +86,16 @@ void Body::UpdateRadius() {
 }
 
 void Body::AddTrailPoint() {
-    m_trail.push_back(m_position);
-    LimitTrailLength();
+    m_trail.AddPoint(m_position);  // O(1) operation
 }
 
 void Body::ClearTrail() {
-    m_trail.clear();
+    m_trail.Clear();
 }
 
 void Body::SetMaxTrailLength(int length) {
     m_maxTrailLength = std::max(0, length);
-    LimitTrailLength();
+    m_trail.SetCapacity(m_maxTrailLength);  // Efficiently resize if needed
 }
 
 bool Body::IsColliding(const Body& other) const {
@@ -128,12 +127,6 @@ void Body::UpdateTrail() {
     
     if (frameCounter % 5 == 0) { // Add point every 5 frames
         AddTrailPoint();
-    }
-}
-
-void Body::LimitTrailLength() {
-    while (static_cast<int>(m_trail.size()) > m_maxTrailLength) {
-        m_trail.erase(m_trail.begin());
     }
 }
 

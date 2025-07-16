@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <vector>
 #include <array>
+#include "CircularTrail.h"
 
 namespace nbody {
 
@@ -23,7 +24,7 @@ public:
     float GetMass() const { return m_mass; }
     float GetRadius() const { return m_radius; }
     const glm::vec3& GetColor() const { return m_color; }
-    const std::vector<glm::vec2>& GetTrail() const { return m_trail; }
+    const CircularTrail& GetTrail() const { return m_trail; }
     
     bool IsSelected() const { return m_selected; }
     bool IsBeingDragged() const { return m_beingDragged; }
@@ -74,7 +75,7 @@ private:
     
     // Visual properties
     glm::vec3 m_color{1.0f, 1.0f, 1.0f};
-    std::vector<glm::vec2> m_trail;
+    CircularTrail m_trail;
     int m_maxTrailLength = 100;
     
     // State flags
@@ -88,7 +89,6 @@ private:
     static constexpr float MAX_RADIUS = 100.0f;     // Larger maximum radius
     
     void UpdateTrail();
-    void LimitTrailLength();
 };
 
 /**

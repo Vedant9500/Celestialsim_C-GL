@@ -578,7 +578,7 @@ void Renderer::RenderTrails(const std::vector<std::unique_ptr<Body>>& bodies) {
     size_t vertexOffset = 0;
     for (const auto& body : bodies) {
         const auto& trail = body->GetTrail();
-        if (trail.size() < 2) {
+        if (trail.GetSize() < 2) {
             continue;
         }
         
@@ -587,7 +587,7 @@ void Renderer::RenderTrails(const std::vector<std::unique_ptr<Body>>& bodies) {
         m_trailShader->SetVec3("uColor", glm::vec3(color.r * 0.7f, color.g * 0.7f, color.b * 0.7f));
         
         // Draw trail as line strip
-        size_t trailVertexCount = (trail.size() - 1) * 2; // Each segment = 2 vertices
+        size_t trailVertexCount = (trail.GetSize() - 1) * 2; // Each segment = 2 vertices
         glDrawArrays(GL_LINES, static_cast<GLint>(vertexOffset), static_cast<GLsizei>(trailVertexCount));
         
         vertexOffset += trailVertexCount;
@@ -731,12 +731,20 @@ void Renderer::UpdateTrailVertices(const std::vector<std::unique_ptr<Body>>& bod
     
     for (const auto& body : bodies) {
         const auto& trail = body->GetTrail();
-        if (trail.size() < 2) continue;
+        if (trail.GetSize() < 2) continue;
         
-        // Add trail segments as line pairs
-        for (size_t i = 1; i < trail.size(); ++i) {
-            m_trailVertices.push_back(trail[i-1]);
-            m_trailVertices.push_back(trail[i]);
+        // Use efficient iterator-based access for CircularTrail
+        auto it = trail.begin();
+        if (it != trail.end()) {
+            glm::vec2 prevPoint = *it;
+            ++it;
+            
+            // Add trail segments as line pairs
+            for (; it != trail.end(); ++it) {
+                m_trailVertices.push_back(prevPoint);
+                m_trailVertices.push_back(*it);
+                prevPoint = *it;
+            }
         }
     }
 }
