@@ -1,0 +1,30 @@
+cmake_minimum_required(VERSION 3.16)
+project(ForceDirectionTest LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find packages
+find_package(OpenGL REQUIRED)
+find_package(glfw3 REQUIRED)
+find_package(glew REQUIRED)
+find_package(glm REQUIRED)
+
+# Include directories
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# Test executable
+add_executable(test_force_direction 
+    test_force_direction.cpp
+    src/core/Body.cpp
+    src/physics/PhysicsEngine.cpp
+    src/physics/BarnesHut.cpp
+)
+
+# Link libraries
+target_link_libraries(test_force_direction 
+    OpenGL::GL
+    glfw
+    GLEW::GLEW
+    glm::glm
+)
