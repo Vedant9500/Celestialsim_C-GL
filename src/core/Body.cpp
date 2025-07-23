@@ -1,6 +1,7 @@
 #include "core/Body.h"
 #include <algorithm>
 #include <cmath>
+#include <thread>
 
 namespace nbody {
 
@@ -122,7 +123,8 @@ glm::vec2 Body::GetMomentum() const {
 
 void Body::UpdateTrail() {
     // Add current position to trail every few frames to avoid too many points
-    static int frameCounter = 0;
+    // Use thread_local for thread safety in multi-threaded physics updates
+    static thread_local int frameCounter = 0;
     frameCounter++;
     
     if (frameCounter % 5 == 0) { // Add point every 5 frames

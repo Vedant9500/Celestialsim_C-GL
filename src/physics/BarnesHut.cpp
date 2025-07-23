@@ -23,13 +23,15 @@ void BarnesHutTree::BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) 
     float size;
     CalculateBounds(bodies, center, size);
     
-    // For very large simulations, limit the debug output
+    // Debug output only in debug builds and less frequently to reduce console spam
+    #ifdef _DEBUG
     static int frameCount = 0;
     frameCount++;
-    if (frameCount % 60 == 0) { // Only print every 60 frames
+    if (frameCount % 300 == 0) { // Only print every 300 frames instead of 60
         std::cout << "Building Barnes-Hut tree for " << bodies.size() << " bodies" << std::endl;
         std::cout << "Tree bounds: center=(" << center.x << "," << center.y << "), size=" << size << std::endl;
     }
+    #endif
     
     // Reset or create root node
     if (!m_root) {
@@ -61,19 +63,23 @@ void BarnesHutTree::BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) 
     }
     
     // Print warnings only occasionally to avoid console spam
-    if (bodiesOutsideBounds > 0 && frameCount % 60 == 0) {
+    #ifdef _DEBUG
+    if (bodiesOutsideBounds > 0 && frameCount % 300 == 0) {
         std::cout << "Warning: " << bodiesOutsideBounds << " bodies outside tree bounds!" << std::endl;
     }
+    #endif
     
     // Calculate center of mass for each node
     UpdateMassAndCenter(m_root.get());
     
     // Count nodes for stats (only occasionally to improve performance)
-    if (frameCount % 60 == 0) {
+    #ifdef _DEBUG
+    if (frameCount % 300 == 0) {
         CountNodes(m_root.get(), m_stats);
         std::cout << "Tree stats: " << m_stats.totalNodes << " nodes, " 
                   << m_stats.leafNodes << " leaves, max depth " << m_stats.maxDepth << std::endl;
     }
+    #endif
 }
 
 glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G) const {
@@ -82,17 +88,19 @@ glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G) 
     }
     
     // Don't reset force calculation counter here - let it accumulate for all bodies
-    int initialCount = m_stats.forceCalculations;
     glm::vec2 force = CalculateForceIterative(body, theta, G);
     
-    // Debug output for first few bodies
+    // Debug output for first few bodies (only in debug builds)
+    #ifdef _DEBUG
     static int debugCount = 0;
     if (debugCount < 3) {
+        int initialCount = m_stats.forceCalculations; // Only compute when needed for debug
         std::cout << "Force on body at (" << body.GetPosition().x << "," << body.GetPosition().y 
                   << ") = (" << force.x << "," << force.y << "), added " 
                   << (m_stats.forceCalculations - initialCount) << " calculations" << std::endl;
         debugCount++;
     }
+    #endif
     
     return force;
 }
@@ -267,7 +275,8 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
         }
     }
     
-    // Debug output for first few bodies
+    // Debug output for first few bodies (only in debug builds)
+    #ifdef _DEBUG
     static int bodyCount = 0;
     if (bodyCount < 3) {
         std::cout << "Body " << bodyCount << ": visits=" << nodeVisits 
@@ -276,6 +285,7 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
                   << ", force=(" << totalForce.x << "," << totalForce.y << ")" << std::endl;
         bodyCount++;
     }
+    #endif
     
     return totalForce;
 }
@@ -316,10 +326,12 @@ void BarnesHutTree::CalculateBounds(const std::vector<std::unique_ptr<Body>>& bo
     // Ensure minimum size to avoid numerical issues
     size = std::max(size, MIN_NODE_SIZE);
     
+    #ifdef _DEBUG
     std::cout << "Bounds: min=(" << minPos.x << "," << minPos.y 
               << "), max=(" << maxPos.x << "," << maxPos.y 
               << "), center=(" << center.x << "," << center.y 
               << "), size=" << size << std::endl;
+    #endif
 }
 
 void BarnesHutTree::CountNodes(const QuadTreeNode* node, TreeStats& stats, int depth) const {

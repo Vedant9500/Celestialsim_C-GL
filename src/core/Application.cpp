@@ -85,6 +85,9 @@ bool Application::Initialize() {
         return false;
     }
     
+    // Reserve memory for bodies to avoid frequent reallocations
+    m_bodies.reserve(1000); // Reserve space for up to 1000 bodies initially
+    
     // Set GPU availability in UI
     m_ui->SetGPUAvailable(m_physics->IsGPUAvailable());
 

@@ -25,7 +25,10 @@ PhysicsEngine::PhysicsEngine() {
     // Configure OpenMP for maximum parallelization
     int numThreads = omp_get_max_threads();
     omp_set_num_threads(numThreads);
+    
+    #ifdef _DEBUG
     std::cout << "Physics Engine: Using " << numThreads << " threads for parallel computation" << std::endl;
+    #endif
 }
 
 PhysicsEngine::~PhysicsEngine() {
@@ -40,8 +43,6 @@ bool PhysicsEngine::Initialize() {
     glGetIntegeri_v(GL_MAX_COMPUTE_WORK_GROUP_SIZE, 2, &workGroupSizes[2]);
     
     // Check if compute shaders are supported (OpenGL 4.3+)
-    const GLubyte* version = glGetString(GL_VERSION);
-    std::cout << "OpenGL Version: " << version << std::endl;
     
     // Check compute shader support
     GLint maxComputeWorkGroupInvocations;
@@ -50,14 +51,20 @@ bool PhysicsEngine::Initialize() {
     // Enable GPU if compute shaders are supported and we have reasonable limits
     m_gpuAvailable = (maxComputeWorkGroupInvocations > 0 && workGroupSizes[0] >= 64);
     
+    #ifdef _DEBUG
+    const GLubyte* version = glGetString(GL_VERSION);
+    std::cout << "OpenGL Version: " << version << std::endl;
     std::cout << "Physics Engine initialized" << std::endl;
     std::cout << "Max compute work group size: " << workGroupSizes[0] << "x" << workGroupSizes[1] << "x" << workGroupSizes[2] << std::endl;
     std::cout << "Max work group invocations: " << maxComputeWorkGroupInvocations << std::endl;
     std::cout << "GPU Acceleration: " << (m_gpuAvailable ? "Available" : "Not Available") << std::endl;
+    #endif
     
     // Initialize GPU resources if available
     if (m_gpuAvailable) {
+        #ifdef _DEBUG
         std::cout << "Setting up GPU compute shaders..." << std::endl;
+        #endif
     }
     
     return true;
@@ -175,7 +182,12 @@ void PhysicsEngine::CalculateForcesDirect(std::vector<std::unique_ptr<Body>>& bo
 void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>& bodies) {
     auto start = std::chrono::high_resolution_clock::now();
     
-    std::cout << "Using Barnes-Hut for " << bodies.size() << " bodies" << std::endl;
+    #ifdef _DEBUG
+    static int debugFrameCount = 0;
+    if (++debugFrameCount % 300 == 0) { // Only print every 300 frames
+        std::cout << "Using Barnes-Hut for " << bodies.size() << " bodies" << std::endl;
+    }
+    #endif
     
     // Build Barnes-Hut tree
     m_barnesHutTree->BuildTree(bodies);

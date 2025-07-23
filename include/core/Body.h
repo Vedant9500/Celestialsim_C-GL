@@ -15,6 +15,14 @@ public:
     Body(const glm::vec2& position, const glm::vec2& velocity, float mass, 
          const glm::vec3& color = glm::vec3(1.0f, 1.0f, 1.0f));
     ~Body() = default;
+    
+    // Explicitly delete copy operations to prevent expensive copies
+    Body(const Body&) = delete;
+    Body& operator=(const Body&) = delete;
+    
+    // Allow move operations
+    Body(Body&&) = default; 
+    Body& operator=(Body&&) = default;
 
     // Getters
     const glm::vec2& GetPosition() const { return m_position; }
