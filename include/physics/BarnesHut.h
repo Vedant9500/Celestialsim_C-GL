@@ -98,11 +98,14 @@ public:
      */
     const QuadTreeNode* GetRoot() const { return m_root.get(); }
     
+    /**
+     * @brief Reserve memory for expected number of nodes (performance optimization)
+     */
+    void ReserveNodes(size_t expectedNodes);
+
 private:
     std::unique_ptr<QuadTreeNode> m_root;
-    mutable TreeStats m_stats;
-    
-    // Tree building
+    mutable TreeStats m_stats;    // Tree building
     void InsertBody(QuadTreeNode* node, Body* body);
     void Subdivide(QuadTreeNode* node);
     void UpdateMassAndCenter(QuadTreeNode* node);

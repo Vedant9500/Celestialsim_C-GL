@@ -10,6 +10,12 @@ namespace nbody {
 
 BarnesHutTree::BarnesHutTree() = default;
 
+void BarnesHutTree::ReserveNodes(size_t expectedNodes) {
+    // This is a placeholder for future optimization
+    // Could implement a node pool here to reduce allocations
+    (void)expectedNodes; // Suppress unused parameter warning
+}
+
 void BarnesHutTree::BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) {
     if (bodies.empty()) {
         m_root.reset();
@@ -106,43 +112,59 @@ glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G) 
 }
 
 void BarnesHutTree::InsertBody(QuadTreeNode* node, Body* body) {
-    // Safety check: ensure body is within node bounds
-    if (!node->Contains(body->GetPosition())) {
-        return;
-    }
+    // Iterative implementation to avoid recursion overhead
+    QuadTreeNode* current = node;
     
-    if (node->isLeaf) {
-        if (node->body == nullptr) {
-            // Empty leaf, place the body here.
-            node->body = body;
+    while (true) {
+        // Safety check: ensure body is within node bounds
+        if (!current->Contains(body->GetPosition())) {
             return;
         }
         
-        // Leaf is occupied, so we must subdivide.
-        // Edge case: If existing body and new body are at the same position,
-        // it can cause infinite recursion. We handle this by just returning.
-        glm::vec2 delta = node->body->GetPosition() - body->GetPosition();
-        if (glm::dot(delta, delta) < 1e-12f) {
-            return;
-        }
+        if (current->isLeaf) {
+            if (current->body == nullptr) {
+                // Empty leaf, place the body here.
+                current->body = body;
+                return;
+            }
+            
+            // Leaf is occupied, so we must subdivide.
+            // Edge case: If existing body and new body are at the same position,
+            // handle gracefully by placing in same node (bodies very close together)
+            glm::vec2 delta = current->body->GetPosition() - body->GetPosition();
+            if (glm::dot(delta, delta) < 1e-12f) {
+                return; // Bodies are essentially at same position
+            }
 
-        Body* existingBody = node->body;
-        node->body = nullptr;
-        node->isLeaf = false; // Mark as internal node
-        Subdivide(node);
-        
-        // Re-insert both bodies into the correct new child quadrants.
-        int existingQuadrant = node->GetQuadrant(existingBody->GetPosition());
-        InsertBody(node->children[existingQuadrant].get(), existingBody);
-        
-        int newQuadrant = node->GetQuadrant(body->GetPosition());
-        InsertBody(node->children[newQuadrant].get(), body);
+            Body* existingBody = current->body;
+            current->body = nullptr;
+            current->isLeaf = false; // Mark as internal node
+            Subdivide(current);
+            
+            // Insert existing body into correct child quadrant
+            int existingQuadrant = current->GetQuadrant(existingBody->GetPosition());
+            if (current->children[existingQuadrant]) {
+                InsertBody(current->children[existingQuadrant].get(), existingBody);
+            }
+            
+            // Continue loop to insert new body
+            int newQuadrant = current->GetQuadrant(body->GetPosition());
+            if (current->children[newQuadrant]) {
+                current = current->children[newQuadrant].get();
+                continue;
+            } else {
+                return;
+            }
 
-    } else { // Node is internal
-        // Insert the body into the correct child quadrant.
-        int quadrant = node->GetQuadrant(body->GetPosition());
-        if (node->children[quadrant]) {
-            InsertBody(node->children[quadrant].get(), body);
+        } else { // Node is internal
+            // Move to the correct child quadrant
+            int quadrant = current->GetQuadrant(body->GetPosition());
+            if (current->children[quadrant]) {
+                current = current->children[quadrant].get();
+                continue;
+            } else {
+                return;
+            }
         }
     }
 }
@@ -229,21 +251,21 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
         // Barnes-Hut approximation: More aggressive approximation for better performance
         // Standard is s/d < theta, which equals s²/d² < theta²
         // Higher theta (0.5-1.0) makes simulation faster but less accurate
-        float sizeToDistRatio = node->size / (std::sqrt(distanceSq) + 1e-10f);
+        float distance = std::sqrt(distanceSq);
+        float sizeToDistRatio = node->size / (distance + 1e-10f);
         
         // If s/d is small enough, use approximation (Rust implementation uses theta=1.0)
         if (sizeToDistRatio < theta) {
             // Node is far enough away, use approximation
             if (distanceSq <= 0.0f) continue; // Avoid division by zero
             
-            // Use consistent gravitational force calculation
+            // Use consistent gravitational force calculation with optimized computation
             // Calculate force magnitude: F = G * mass / r² where r² includes softening
             float softenedDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
             float forceMagnitude = G * node->totalMass / softenedDistSq;
             
-            // Normalize direction and apply magnitude
-            float invDistance = 1.0f / std::sqrt(distanceSq);
-            totalForce += forceMagnitude * bodyToNode * invDistance;
+            // Optimize: use existing distance calculation to avoid redundant sqrt
+            totalForce += forceMagnitude * bodyToNode / distance;
             
             m_stats.forceCalculations++;
         } 
@@ -258,9 +280,8 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
             float softenedDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
             float forceMagnitude = G * node->totalMass / softenedDistSq;
             
-            // Normalize direction and apply magnitude
-            float invDistance = 1.0f / std::sqrt(distanceSq);
-            totalForce += forceMagnitude * bodyToNode * invDistance;
+            // Optimize: reuse distance calculation
+            totalForce += forceMagnitude * bodyToNode / distance;
             
             m_stats.forceCalculations++;
         } 
@@ -298,13 +319,14 @@ void BarnesHutTree::CalculateBounds(const std::vector<std::unique_ptr<Body>>& bo
         return;
     }
     
-    // Start with a very large/small bounding box
-    glm::vec2 minPos(std::numeric_limits<float>::max());
-    glm::vec2 maxPos(std::numeric_limits<float>::lowest());
+    // Optimized bounds calculation - use first body as initial values
+    const glm::vec2& firstPos = bodies[0]->GetPosition();
+    glm::vec2 minPos(firstPos);
+    glm::vec2 maxPos(firstPos);
     
-    // Find the actual bounds of all bodies
-    for (const auto& body : bodies) {
-        const glm::vec2& pos = body->GetPosition();
+    // Find the actual bounds of all bodies (start from index 1)
+    for (size_t i = 1; i < bodies.size(); ++i) {
+        const glm::vec2& pos = bodies[i]->GetPosition();
         minPos.x = std::min(minPos.x, pos.x);
         minPos.y = std::min(minPos.y, pos.y);
         maxPos.x = std::max(maxPos.x, pos.x);
