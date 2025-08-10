@@ -3,6 +3,8 @@
 #include "core/Body.h"
 #include <iostream>
 #include <glm/glm.hpp>
+#include <windows.h>
+#include <GL/glew.h>
 
 namespace nbody {
 
@@ -15,11 +17,20 @@ GPUPhysicsSolver::~GPUPhysicsSolver() {
 }
 
 bool GPUPhysicsSolver::Initialize() {
+    std::cout << "GPU Physics Solver: Starting initialization..." << std::endl;
+    
+    // Print current working directory
+    char buffer[MAX_PATH];
+    if (GetCurrentDirectoryA(MAX_PATH, buffer)) {
+        std::cout << "Current working directory: " << buffer << std::endl;
+    }
+    
     // Check if compute shaders are supported
     if (!ComputeShader::IsSupported()) {
         std::cerr << "GPU Physics Solver: Compute shaders not supported" << std::endl;
         return false;
     }
+    std::cout << "GPU Physics Solver: Compute shaders are supported" << std::endl;
     
     // Create compute shaders
     m_forceComputeShader = std::make_unique<ComputeShader>();
@@ -32,9 +43,14 @@ bool GPUPhysicsSolver::Initialize() {
         // Try alternative path
         if (!m_forceComputeShader->LoadFromFile("../shaders/compute/force_calculation.comp")) {
             std::cerr << "Failed to load force calculation compute shader from ../shaders/compute/force_calculation.comp" << std::endl;
-            return false;
+            // Try build directory path
+            if (!m_forceComputeShader->LoadFromFile("build/shaders/compute/force_calculation.comp")) {
+                std::cerr << "Failed to load force calculation compute shader from build/shaders/compute/force_calculation.comp" << std::endl;
+                return false;
+            }
         }
     }
+    std::cout << "Force calculation shader loaded successfully" << std::endl;
     
     // Load integration shader
     std::cout << "Loading integration compute shader..." << std::endl;
@@ -43,9 +59,14 @@ bool GPUPhysicsSolver::Initialize() {
         // Try alternative path
         if (!m_integrationShader->LoadFromFile("../shaders/compute/integration.comp")) {
             std::cerr << "Failed to load integration compute shader from ../shaders/compute/integration.comp" << std::endl;
-            return false;
+            // Try build directory path
+            if (!m_integrationShader->LoadFromFile("build/shaders/compute/integration.comp")) {
+                std::cerr << "Failed to load integration compute shader from build/shaders/compute/integration.comp" << std::endl;
+                return false;
+            }
         }
     }
+    std::cout << "Integration shader loaded successfully" << std::endl;
     
     std::cout << "GPU Physics Solver initialized successfully" << std::endl;
     return true;
@@ -79,7 +100,7 @@ void GPUPhysicsSolver::Update(std::vector<std::unique_ptr<Body>>& bodies, float 
     m_forceComputeShader->Dispatch(numWorkGroups);
     
     // Memory barrier to ensure forces are calculated before integration
-    ComputeShader::MemoryBarrier();
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     
     // Integrate motion on GPU
     m_integrationShader->Use();
@@ -87,7 +108,7 @@ void GPUPhysicsSolver::Update(std::vector<std::unique_ptr<Body>>& bodies, float 
     m_integrationShader->SetFloat("deltaTime", deltaTime);
     
     m_integrationShader->Dispatch(numWorkGroups);
-    ComputeShader::MemoryBarrier();
+    glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
     
     // Download results from GPU
     DownloadData(bodies);
