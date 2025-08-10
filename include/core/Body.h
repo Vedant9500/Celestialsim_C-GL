@@ -95,6 +95,7 @@ private:
     static constexpr float DEFAULT_DENSITY = 0.1f;  // Lower density = larger bodies for same mass
     static constexpr float MIN_RADIUS = 2.0f;       // Much larger minimum radius
     static constexpr float MAX_RADIUS = 100.0f;     // Larger maximum radius
+    static constexpr int DEFAULT_TRAIL_LENGTH = 100; // Default trail capacity
     
     void UpdateTrail();
 };

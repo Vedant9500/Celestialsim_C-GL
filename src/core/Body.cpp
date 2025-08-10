@@ -11,7 +11,7 @@ Body::Body(const glm::vec2& position, const glm::vec2& velocity, float mass, con
     , m_mass(mass)
     , m_color(color)
     , m_density(DEFAULT_DENSITY)
-    , m_trail(m_maxTrailLength)  // Initialize CircularTrail with capacity
+    , m_trail(DEFAULT_TRAIL_LENGTH)  // Use safe constant instead of potentially uninitialized member
 {
     UpdateRadius();
 }
