@@ -243,6 +243,7 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
 void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodies) {
     // Initialize GPU solver if needed
     if (!m_gpuSolver) {
+        std::cout << "Initializing GPU solver..." << std::endl;
         m_gpuSolver = std::make_unique<GPUPhysicsSolver>();
         if (!m_gpuSolver->Initialize()) {
             std::cerr << "Failed to initialize GPU solver, falling back to direct method" << std::endl;
@@ -251,6 +252,7 @@ void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodie
             m_stats.method = "Direct (GPU failed)";
             return;
         }
+        std::cout << "GPU solver initialized successfully!" << std::endl;
     }
     
     // Set GPU solver parameters

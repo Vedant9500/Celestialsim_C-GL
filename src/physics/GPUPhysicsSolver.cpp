@@ -26,15 +26,25 @@ bool GPUPhysicsSolver::Initialize() {
     m_integrationShader = std::make_unique<ComputeShader>();
     
     // Load force calculation shader
+    std::cout << "Loading force calculation compute shader..." << std::endl;
     if (!m_forceComputeShader->LoadFromFile("shaders/compute/force_calculation.comp")) {
-        std::cerr << "Failed to load force calculation compute shader" << std::endl;
-        return false;
+        std::cerr << "Failed to load force calculation compute shader from shaders/compute/force_calculation.comp" << std::endl;
+        // Try alternative path
+        if (!m_forceComputeShader->LoadFromFile("../shaders/compute/force_calculation.comp")) {
+            std::cerr << "Failed to load force calculation compute shader from ../shaders/compute/force_calculation.comp" << std::endl;
+            return false;
+        }
     }
     
     // Load integration shader
+    std::cout << "Loading integration compute shader..." << std::endl;
     if (!m_integrationShader->LoadFromFile("shaders/compute/integration.comp")) {
-        std::cerr << "Failed to load integration compute shader" << std::endl;
-        return false;
+        std::cerr << "Failed to load integration compute shader from shaders/compute/integration.comp" << std::endl;
+        // Try alternative path
+        if (!m_integrationShader->LoadFromFile("../shaders/compute/integration.comp")) {
+            std::cerr << "Failed to load integration compute shader from ../shaders/compute/integration.comp" << std::endl;
+            return false;
+        }
     }
     
     std::cout << "GPU Physics Solver initialized successfully" << std::endl;
