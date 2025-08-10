@@ -172,7 +172,10 @@ bool Renderer::Initialize(GLFWwindow* window) {
     
     // Log successful initialization only in debug builds
     #ifdef _DEBUG
+        
+    #ifdef _DEBUG
     std::cout << "Renderer initialized successfully" << std::endl;
+    #endif
     #endif
     return true;
 }

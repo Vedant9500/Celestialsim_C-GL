@@ -201,7 +201,12 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
     // Reset force calculation counter before starting
     m_barnesHutTree->ResetForceCalculations();
     
-    std::cout << "Using G=" << G << ", theta=" << theta << std::endl;
+    #ifdef _DEBUG
+    static int debugFrameCount = 0;
+    if (++debugFrameCount % 300 == 0) { // Only print every 300 frames
+        std::cout << "Using G=" << G << ", theta=" << theta << std::endl;
+    }
+    #endif
     
     // Calculate forces using Barnes-Hut approximation
     // Use parallel execution for better performance with many bodies
@@ -210,14 +215,16 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
         auto& body = bodies[i];
         if (body->IsFixed()) continue;
         
-        // Add debugging for the first few bodies
-        if (i < 20) {
+        #ifdef _DEBUG
+        // Add debugging for the first few bodies (only occasionally)
+        if (i < 3 && debugFrameCount % 300 == 0) {
             std::cout << "Force calc for body at (" << body->GetPosition().x << "," 
                      << body->GetPosition().y << "), body mass=" << body->GetMass() 
                      << ", tree root mass=" << m_barnesHutTree->GetRoot()->totalMass 
                      << ", tree center=(" << m_barnesHutTree->GetRoot()->centerOfMass.x 
                      << "," << m_barnesHutTree->GetRoot()->centerOfMass.y << ")" << std::endl;
         }
+        #endif
         
         glm::vec2 force = m_barnesHutTree->CalculateForce(*body, theta, G);
         body->ApplyForce(force);
@@ -225,7 +232,12 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
     
     auto treeStats = m_barnesHutTree->GetStats();
     m_stats.forceCalculations = treeStats.forceCalculations;
-    std::cout << "Total force calculations: " << m_stats.forceCalculations << std::endl;
+    
+    #ifdef _DEBUG
+    if (debugFrameCount % 300 == 0) {
+        std::cout << "Total force calculations: " << m_stats.forceCalculations << std::endl;
+    }
+    #endif
 }
 
 void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodies) {
