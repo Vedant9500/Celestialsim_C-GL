@@ -72,9 +72,10 @@ public:
      * @param body Target body
      * @param theta Approximation parameter (e.g., 0.5). Higher is faster but less accurate.
      * @param G The gravitational constant
+     * @param softeningLength Softening length to prevent singularities
      * @return Force vector
      */
-    glm::vec2 CalculateForce(const Body& body, float theta, float G) const;
+    glm::vec2 CalculateForce(const Body& body, float theta, float G, float softeningLength) const;
 
     /**
      * @brief Get tree statistics
@@ -111,7 +112,7 @@ private:
     void UpdateMassAndCenter(QuadTreeNode* node);
     
     // Force calculation
-    glm::vec2 CalculateForceIterative(const Body& body, float theta, float G) const;
+    glm::vec2 CalculateForceIterative(const Body& body, float theta, float G, float softeningLength) const;
     
     // Utility
     void CalculateBounds(const std::vector<std::unique_ptr<Body>>& bodies,

@@ -18,6 +18,9 @@ public:
     
     bool Initialize();
     
+    void SetGravitationalConstant(float G) { m_gravitationalConstant = G; }
+    void SetSoftening(float softening) { m_softeningLength = softening; }
+    
     void Update(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) override;
     std::string GetAlgorithmName() const override { return "GPU Compute Shader"; }
     bool UsesGPU() const override { return true; }
@@ -31,6 +34,10 @@ private:
     GLuint m_velocityBuffer = 0;
     GLuint m_massBuffer = 0;
     GLuint m_forceBuffer = 0;
+    
+    // Physics parameters
+    float m_gravitationalConstant = 1.0f;
+    float m_softeningLength = 0.1f;
     
     size_t m_maxParticles = 0;
     

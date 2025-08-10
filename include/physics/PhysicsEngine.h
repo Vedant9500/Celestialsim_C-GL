@@ -11,6 +11,7 @@ namespace nbody {
 
 class Body;
 class ComputeShader;
+class GPUPhysicsSolver;
 struct BodyArrays;
 
 /**
@@ -149,16 +150,8 @@ private:
     // Barnes-Hut tree for force approximation
     std::unique_ptr<BarnesHutTree> m_barnesHutTree;
     
-    // GPU resources (temporarily disabled)
-    // std::unique_ptr<ComputeShader> m_forceComputeShader;
-    // std::unique_ptr<ComputeShader> m_integrationShader;
-    
-    // GPU buffers (temporarily disabled)
-    // GLuint m_positionBuffer = 0;
-    // GLuint m_velocityBuffer = 0;
-    // GLuint m_massBuffer = 0;
-    // GLuint m_forceBuffer = 0;
-    // size_t m_maxGPUParticles = 0;
+    // GPU physics solver
+    std::unique_ptr<GPUPhysicsSolver> m_gpuSolver;
     
     // Private methods
     void StartTimer();

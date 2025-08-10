@@ -1,7 +1,7 @@
 #include "physics/PhysicsEngine.h"
 #include "physics/BarnesHut.h"
+#include "physics/GPUPhysicsSolver.h"
 #include "core/Body.h"
-// #include "rendering/ComputeShader.h"  // TODO: Enable when ComputeShader is ready
 #include <GL/glew.h>
 #include <omp.h>
 #include <iostream>
@@ -226,7 +226,7 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
         }
         #endif
         
-        glm::vec2 force = m_barnesHutTree->CalculateForce(*body, theta, G);
+        glm::vec2 force = m_barnesHutTree->CalculateForce(*body, theta, G, m_config.softeningLength);
         body->ApplyForce(force);
     }
     
@@ -241,9 +241,47 @@ void PhysicsEngine::CalculateForcesBarnesHut(std::vector<std::unique_ptr<Body>>&
 }
 
 void PhysicsEngine::CalculateForcesGPU(std::vector<std::unique_ptr<Body>>& bodies) {
-    // GPU implementation temporarily disabled - need to build ComputeShader first
-    CalculateForcesDirect(bodies);
-    m_stats.method = "Direct (GPU disabled)";
+    // Initialize GPU solver if needed
+    if (!m_gpuSolver) {
+        m_gpuSolver = std::make_unique<GPUPhysicsSolver>();
+        if (!m_gpuSolver->Initialize()) {
+            std::cerr << "Failed to initialize GPU solver, falling back to direct method" << std::endl;
+            m_gpuSolver.reset();
+            CalculateForcesDirect(bodies);
+            m_stats.method = "Direct (GPU failed)";
+            return;
+        }
+    }
+    
+    // Set GPU solver parameters
+    m_gpuSolver->SetGravitationalConstant(m_config.gravitationalConstant);
+    m_gpuSolver->SetSoftening(m_config.softeningLength);
+    
+    #ifdef _DEBUG
+    static int debugFrameCount = 0;
+    if (++debugFrameCount % 300 == 0) { // Only print every 300 frames
+        std::cout << "Using GPU compute shaders for " << bodies.size() << " bodies" << std::endl;
+    }
+    #endif
+    
+    // Clear forces before GPU calculation
+    for (auto& body : bodies) {
+        body->ClearForce();
+    }
+    
+    // Use GPU solver for force calculation
+    try {
+        m_gpuSolver->Update(bodies, 0.0f); // deltaTime=0 for force calculation only
+        m_stats.method = "GPU Compute Shaders";
+        
+        // For now, we calculate forces on GPU but integrate on CPU
+        // This is a hybrid approach until full GPU pipeline is ready
+        
+    } catch (const std::exception& e) {
+        std::cerr << "GPU calculation failed: " << e.what() << ", falling back to direct method" << std::endl;
+        CalculateForcesDirect(bodies);
+        m_stats.method = "Direct (GPU exception)";
+    }
 }
 
 void PhysicsEngine::IntegrateMotion(std::vector<std::unique_ptr<Body>>& bodies, float deltaTime) {
@@ -764,6 +802,7 @@ glm::vec2 PhysicsEngine::CalculateGravitationalForce(
     float softenedDistanceSquared = distanceSquared + softeningLength * softeningLength;
     
     // Calculate force magnitude: F = G * mB / r² (acceleration on A)
+    // Note: This returns acceleration, not force - mass of A is applied during integration
     float forceMagnitude = G * massB / softenedDistanceSquared;
     
     // Normalize direction and apply magnitude

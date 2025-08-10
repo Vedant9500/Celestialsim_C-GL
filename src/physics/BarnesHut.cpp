@@ -88,13 +88,13 @@ void BarnesHutTree::BuildTree(const std::vector<std::unique_ptr<Body>>& bodies) 
     #endif
 }
 
-glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G) const {
+glm::vec2 BarnesHutTree::CalculateForce(const Body& body, float theta, float G, float softeningLength) const {
     if (!m_root) {
         return glm::vec2(0.0f);
     }
     
     // Don't reset force calculation counter here - let it accumulate for all bodies
-    glm::vec2 force = CalculateForceIterative(body, theta, G);
+    glm::vec2 force = CalculateForceIterative(body, theta, G, softeningLength);
     
     // Debug output for first few bodies (only in debug builds)
     #ifdef _DEBUG
@@ -215,7 +215,7 @@ void BarnesHutTree::UpdateMassAndCenter(QuadTreeNode* node) {
     }
 }
 
-glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, float G) const {
+glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, float G, float softeningLength) const {
     glm::vec2 totalForce(0.0f);
     if (!m_root || m_root->totalMass <= 0.0f) {
         return totalForce;
@@ -259,9 +259,9 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
             // Node is far enough away, use approximation
             if (distanceSq <= 0.0f) continue; // Avoid division by zero
             
-            // Use consistent gravitational force calculation with optimized computation
+            // Use consistent gravitational force calculation with configurable softening
             // Calculate force magnitude: F = G * mass / r² where r² includes softening
-            float softenedDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            float softenedDistSq = distanceSq + softeningLength * softeningLength;
             float forceMagnitude = G * node->totalMass / softenedDistSq;
             
             // Optimize: use existing distance calculation to avoid redundant sqrt
@@ -277,7 +277,7 @@ glm::vec2 BarnesHutTree::CalculateForceIterative(const Body& body, float theta, 
             if (distanceSq <= 0.0f) continue; // Avoid division by zero
             
             // Use consistent gravitational force calculation
-            float softenedDistSq = distanceSq + SOFTENING_LENGTH * SOFTENING_LENGTH;
+            float softenedDistSq = distanceSq + softeningLength * softeningLength;
             float forceMagnitude = G * node->totalMass / softenedDistSq;
             
             // Optimize: reuse distance calculation
