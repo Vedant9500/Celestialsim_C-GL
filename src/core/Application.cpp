@@ -291,9 +291,9 @@ void Application::HandleInput() {
             lastPanPos = m_mousePosition;
         } else {
             glm::vec2 delta = m_mousePosition - lastPanPos;
-            // Invert the Y component to make camera move naturally with drag direction
-            // When user drags up, the camera should move up (negative y in screen space is up)
-            glm::vec2 correctedDelta = glm::vec2(delta.x, -delta.y) * 0.002f;
+            // Invert X axis only for intuitive dragging behavior
+            // When user drags right, view moves left; when user drags up, view moves up
+            glm::vec2 correctedDelta = glm::vec2(-delta.x, delta.y) * 0.002f;
             m_renderer->PanCamera(correctedDelta); // Smoother panning
             lastPanPos = m_mousePosition;
         }
