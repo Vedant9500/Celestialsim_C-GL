@@ -1394,7 +1394,7 @@ void Application::SaveConfiguration(const std::string& filename) {
         }
         
         file.close();
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         // Could add error logging here
     }
 }
@@ -1501,7 +1501,7 @@ void Application::LoadConfiguration(const std::string& filename) {
                                         std::stof(config[prefix + "color.b"]));
                     }
                     
-                    AddBody(position, velocity, mass, 1000.0f, color);
+                    AddBody(position, velocity, mass, radius, color);
                 }
             }
         }
@@ -1516,7 +1516,7 @@ void Application::LoadConfiguration(const std::string& filename) {
             m_ui->OnRenderParameterChanged();
         }
         
-    } catch (const std::exception& e) {
+    } catch (const std::exception&) {
         // Could add error logging here
         // For now, just clear bodies if loading failed
         ClearBodies();
