@@ -75,13 +75,6 @@ The simulation supports various presets and can be configured through the GUI:
 - **Binary Stars**: Binary star systems
 - **Clusters**: Globular clusters
 
-## Performance
-
-- **CPU**: Up to 100,000 bodies with Barnes-Hut algorithm
-- **GPU**: Up to 1,000,000 bodies with compute shaders
-- **Memory**: Efficient Structure-of-Arrays layout
-- **Threading**: OpenMP parallelization for CPU calculations
-
 ## Architecture
 
 ```
